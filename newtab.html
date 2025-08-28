@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="wallpaper-container" id="wallpaperContainer"></div>
+    
+    <!-- Clock and Weather Widget -->
+    <div class="clock-weather-widget">
+        <div class="clock-display">
+            <div id="currentTime" class="time">--:--</div>
+            <div id="currentDate" class="date">-- --- --</div>
+        </div>
+        <div class="weather-display">
+            <div id="weatherInfo" class="weather">
+                <div class="weather-temp">--°</div>
+                <div class="weather-desc">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Brave Stats Section -->
+        <div class="stats-section">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="trackersBlocked">157,835</div>
+                    <div class="stat-label">Trackers & ads blocked</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="bandwidthSaved">4.83GB</div>
+                    <div class="stat-label">Bandwidth saved</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="timeSaved">2.2hours</div>
+                    <div class="stat-label">Time saved</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search the web" />
+                <div class="search-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M7.333 12.667A5.333 5.333 0 1 0 7.333 2a5.333 5.333 0 0 0 0 10.667ZM14 14l-2.9-2.9" stroke="currentColor" stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Top Sites Section -->
+        <div class="top-sites-section">
+            <div class="top-sites-header">
+                <h2 id="sitesHeaderTitle">Top Sites</h2>
+                <div class="top-sites-controls">
+                    <button id="toggleViewBtn" class="toggle-view-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M2 6h12M2 10h12M6 2v12" stroke="currentColor" stroke-width="1.33" stroke-linecap="round"/>
+                        </svg>
+                        <span id="toggleViewText">Favorites</span>
+                    </button>
+                    <button id="showMoreBtn" class="show-more-btn">Show More</button>
+                    <button id="customizeBtn" class="customize-btn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" stroke="currentColor" stroke-width="1.33"/>
+                            <path d="M12.93 6.93a1 1 0 0 1 0 2.14l-.8.34a1 1 0 0 0-.59.59l-.34.8a1 1 0 0 1-2.14 0l-.34-.8a1 1 0 0 0-.59-.59l-.8-.34a1 1 0 0 1 0-2.14l.8-.34a1 1 0 0 0 .59-.59l.34-.8a1 1 0 0 1 2.14 0l.34.8a1 1 0 0 0 .59.59l.8.34Z" stroke="currentColor" stroke-width="1.33"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="topSitesGrid" class="top-sites-grid">
+                <!-- Top sites will be loaded here by JavaScript -->
+            </div>
+            
+            <div id="customizePanel" class="customize-panel hidden">
+                <div class="customize-content">
+                    <h3>Customize Top Sites</h3>
+                    <div class="customize-options">
+                        <div class="option-group">
+                            <label>Number of sites to show:</label>
+                            <select id="siteCountSelect">
+                                <option value="6">6 sites</option>
+                                <option value="12" selected>12 sites</option>
+                                <option value="24">24 sites</option>
+                                <option value="48">48 sites</option>
+                                <option value="custom">Custom number</option>
+                            </select>
+                        </div>
+                        <div class="option-group" id="customCountGroup" style="display: none;">
+                            <label>Enter custom number:</label>
+                            <input type="number" id="customSiteCount" min="1" max="100" placeholder="Enter number (1-100)" />
+                            <button id="applyCustomCountBtn" class="apply-custom-btn">Apply</button>
+                        </div>
+                        <div class="option-group">
+                            <button id="addFromTabBtn" class="add-from-tab-btn">Add from Open Tabs</button>
+                            <button id="addCustomSiteBtn" class="add-site-btn">Add Custom Site</button>
+                        </div>
+                        <div class="option-group">
+                            <button id="resetSitesBtn" class="reset-btn">Reset to Default</button>
+                        </div>
+                        <div class="option-group">
+                            <label>Weather Location:</label>
+                            <input type="text" id="weatherLocationInput" placeholder="Enter city name" />
+                            <button id="updateLocationBtn" class="apply-custom-btn">Update</button>
+                        </div>
+                        <div class="option-group">
+                            <label>Time Format:</label>
+                            <select id="timeFormatSelect">
+                                <option value="12h">12 Hour</option>
+                                <option value="24h">24 Hour</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label>Temperature:</label>
+                            <select id="tempFormatSelect">
+                                <option value="fahrenheit">Fahrenheit (°F)</option>
+                                <option value="celsius">Celsius (°C)</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label>Backup & Restore:</label>
+                            <div class="backup-controls">
+                                <button id="exportConfigBtn" class="export-btn">Export Config</button>
+                                <input type="file" id="importConfigInput" accept=".json" style="display: none;">
+                                <button id="importConfigBtn" class="import-btn">Import Config</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="closePanelBtn" class="close-panel-btn">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wallpaper Controls -->
+        <div class="wallpaper-controls">
+            <button id="wallpaperBtn" class="wallpaper-btn" title="Change Background">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M3 15l4-4 5 5 5-5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Custom Site Modal -->
+    <div id="addSiteModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Add Custom Site</h3>
+            <div class="modal-form">
+                <div class="form-group">
+                    <label for="siteName">Site Name:</label>
+                    <input type="text" id="siteName" placeholder="Enter site name">
+                </div>
+                <div class="form-group">
+                    <label for="siteUrl">Site URL:</label>
+                    <input type="url" id="siteUrl" placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                    <label for="siteIcon">Icon URL (optional):</label>
+                    <input type="url" id="siteIcon" placeholder="https://example.com/icon.png">
+                </div>
+                <div class="modal-actions">
+                    <button id="saveSiteBtn" class="save-btn">Save</button>
+                    <button id="cancelSiteBtn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Site Modal -->
+    <div id="editSiteModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Edit Favorite</h3>
+            <div class="modal-form">
+                <div class="form-group">
+                    <label for="editSiteName">Site Name:</label>
+                    <input type="text" id="editSiteName" placeholder="Enter site name">
+                </div>
+                <div class="form-group">
+                    <label for="editSiteUrl">Site URL:</label>
+                    <input type="url" id="editSiteUrl" placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                    <label for="editSiteIcon">Icon URL (optional):</label>
+                    <input type="url" id="editSiteIcon" placeholder="https://example.com/icon.png">
+                </div>
+                <div class="modal-actions">
+                    <button id="updateSiteBtn" class="save-btn">Update</button>
+                    <button id="cancelEditBtn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Select Tab Modal -->
+    <div id="selectTabModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Select Tab to Add</h3>
+            <div class="tab-list" id="tabList">
+                <!-- Open tabs will be loaded here -->
+            </div>
+            <div class="modal-actions">
+                <button id="cancelTabSelectBtn" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="newtab.js"></script>
+</body>
+</html>

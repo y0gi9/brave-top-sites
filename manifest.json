@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Brave 48 Top Sites",
+  "version": "1.0",
+  "description": "Override new tab page to show 48 top sites instead of 12",
+  "permissions": [
+    "topSites",
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  }
+}
