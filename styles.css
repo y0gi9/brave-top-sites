@@ -300,16 +300,20 @@ body {
 }
 
 .top-site.dragging {
-    opacity: 0.5;
+    opacity: 0.7;
     transform: rotate(5deg) scale(0.95);
     z-index: 1000;
     cursor: grabbing;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
 }
 
 .top-site.drag-over {
     background: rgba(74, 144, 226, 0.3);
     border-color: rgba(74, 144, 226, 0.8);
     transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(74, 144, 226, 0.5);
+    transition: all 0.2s ease;
 }
 
 .drop-indicator {

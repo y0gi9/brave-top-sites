@@ -1028,6 +1028,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         updateGridDisplay();
+        
+        // Setup drop zones for drag and drop functionality
+        setupDropZones();
     }
 
     function updateGridDisplay() {
@@ -1225,38 +1228,79 @@ document.addEventListener('DOMContentLoaded', async function() {
                 indicator.remove();
             });
         });
+    }
+    
+    function setupDropZones() {
+        console.log('Setting up drop zones for view:', currentView);
         
-        element.addEventListener('dragover', (e) => {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            e.dataTransfer.dropEffect = 'move';
-            return false;
+        // Remove existing drop zones
+        document.querySelectorAll('.top-site').forEach(site => {
+            site.removeEventListener('dragover', handleDragOver);
+            site.removeEventListener('dragenter', handleDragEnter);
+            site.removeEventListener('dragleave', handleDragLeave);
+            site.removeEventListener('drop', handleDrop);
         });
         
-        element.addEventListener('dragenter', (e) => {
-            element.classList.add('drag-over');
+        // Add drop zones to all custom sites in favorites view
+        if (currentView === 'favorites') {
+            const draggableSites = document.querySelectorAll('.top-site.draggable');
+            console.log('Found', draggableSites.length, 'draggable sites');
+            
+            draggableSites.forEach((site, index) => {
+                site.addEventListener('dragover', handleDragOver);
+                site.addEventListener('dragenter', handleDragEnter);
+                site.addEventListener('dragleave', handleDragLeave);
+                site.addEventListener('drop', handleDrop);
+                console.log('Added drop listeners to site', index, ':', site.dataset.siteIndex);
+            });
+        }
+    }
+    
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+    
+    function handleDragEnter(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+    }
+    
+    function handleDragLeave(e) {
+        // Only remove drag-over if we're leaving the element entirely
+        if (!this.contains(e.relatedTarget)) {
+            this.classList.remove('drag-over');
+        }
+    }
+    
+    function handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        this.classList.remove('drag-over');
+        
+        const draggedElement = document.querySelector('.dragging');
+        if (!draggedElement) {
+            console.log('No dragging element found');
+            return;
+        }
+        
+        const dragStartIndex = parseInt(draggedElement.dataset.siteIndex);
+        const dragEndIndex = parseInt(this.dataset.siteIndex);
+        
+        console.log('Drop event:', {
+            dragStartIndex: dragStartIndex,
+            dragEndIndex: dragEndIndex,
+            draggedElement: draggedElement,
+            dropTarget: this
         });
         
-        element.addEventListener('dragleave', (e) => {
-            element.classList.remove('drag-over');
-        });
-        
-        element.addEventListener('drop', (e) => {
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
-            
-            element.classList.remove('drag-over');
-            
-            const dragEndIndex = parseInt(element.dataset.siteIndex);
-            
-            if (dragStartIndex !== null && dragStartIndex !== dragEndIndex) {
-                reorderFavorites(dragStartIndex, dragEndIndex);
-            }
-            
-            return false;
-        });
+        if (dragStartIndex !== null && dragEndIndex !== null && dragStartIndex !== dragEndIndex) {
+            console.log('Reordering favorites from', dragStartIndex, 'to', dragEndIndex);
+            reorderFavorites(dragStartIndex, dragEndIndex);
+        } else {
+            console.log('Invalid drop indices or same position');
+        }
     }
     
     function reorderFavorites(fromIndex, toIndex) {
