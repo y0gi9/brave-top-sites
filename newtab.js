@@ -52,7 +52,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     let timeFormat = settings.timeFormat || '12h';
     let tempFormat = settings.tempFormat || 'fahrenheit';
     let clockPosition = settings.clockPosition || { top: 24, right: 24 };
-    let statsPosition = settings.statsPosition || { top: null, left: null }; // null means centered
+    let showClockWidget = settings.showClockWidget !== false; // Default to true
+    let showStatsWidget = settings.showStatsWidget !== false; // Default to true
+    let showSearchWidget = settings.showSearchWidget !== false; // Default to true
+
     let allSites = [];
     let customSites = JSON.parse(localStorage.getItem('customTopSites') || '[]');
     let currentWallpaperIndex = parseInt(localStorage.getItem('wallpaperIndex') || '0');
@@ -85,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializeWallpaper();
     initializeView();
     initializeWeatherLocation();
+    initializeWidgetVisibility();
     loadTopSites();
     setupEventListeners();
     updateStats();
@@ -169,6 +173,40 @@ document.addEventListener('DOMContentLoaded', async function() {
         tempFormatSelect.value = tempFormat;
     }
     
+    function initializeWidgetVisibility() {
+        // Set initial checkbox states
+        document.getElementById('showClockWidget').checked = showClockWidget;
+        document.getElementById('showStatsWidget').checked = showStatsWidget;
+        document.getElementById('showSearchWidget').checked = showSearchWidget;
+        
+        // Apply initial visibility
+        updateWidgetVisibility();
+    }
+    
+    function updateWidgetVisibility() {
+        const clockWidget = document.querySelector('.clock-weather-widget');
+        const statsSection = document.querySelector('.stats-section');
+        const searchSection = document.querySelector('.search-section');
+        
+        if (showClockWidget) {
+            clockWidget.classList.remove('hidden');
+        } else {
+            clockWidget.classList.add('hidden');
+        }
+        
+        if (showStatsWidget) {
+            statsSection.classList.remove('hidden');
+        } else {
+            statsSection.classList.add('hidden');
+        }
+        
+        if (showSearchWidget) {
+            searchSection.classList.remove('hidden');
+        } else {
+            searchSection.classList.add('hidden');
+        }
+    }
+    
     function saveSettings() {
         const settings = {
             siteCount: currentSiteCount,
@@ -177,7 +215,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             timeFormat: timeFormat,
             tempFormat: tempFormat,
             clockPosition: clockPosition,
-            statsPosition: statsPosition
+            showClockWidget: showClockWidget,
+            showStatsWidget: showStatsWidget,
+            showSearchWidget: showSearchWidget
         };
         localStorage.setItem('braveExtensionSettings', JSON.stringify(settings));
     }
@@ -485,7 +525,10 @@ document.addEventListener('DOMContentLoaded', async function() {
                 timestamp: new Date().toISOString(),
                 settings: {
                     siteCount: currentSiteCount,
-                    currentView: currentView
+                    currentView: currentView,
+                    showClockWidget: showClockWidget,
+                    showStatsWidget: showStatsWidget,
+                    showSearchWidget: showSearchWidget
                 },
                 customSites: customSites,
                 stats: JSON.parse(localStorage.getItem('braveStats') || '{"trackers": 157835, "bandwidth": 4.83, "time": 2.2}'),
@@ -521,6 +564,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                             if (config.settings) {
                                 currentSiteCount = config.settings.siteCount || 12;
                                 currentView = config.settings.currentView || 'topSites';
+                                showClockWidget = config.settings.showClockWidget !== false;
+                                showStatsWidget = config.settings.showStatsWidget !== false;
+                                showSearchWidget = config.settings.showSearchWidget !== false;
                             }
                             
                             // Restore custom sites
@@ -544,6 +590,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                             // Save settings and reload
                             saveSettings();
                             initializeView();
+                            initializeWidgetVisibility();
                             loadTopSites();
                             updateStats();
                             
@@ -586,6 +633,25 @@ document.addEventListener('DOMContentLoaded', async function() {
             tempFormat = e.target.value;
             saveSettings();
             updateWeather();
+        });
+        
+        // Widget visibility controls
+        document.getElementById('showClockWidget').addEventListener('change', (e) => {
+            showClockWidget = e.target.checked;
+            saveSettings();
+            updateWidgetVisibility();
+        });
+        
+        document.getElementById('showStatsWidget').addEventListener('change', (e) => {
+            showStatsWidget = e.target.checked;
+            saveSettings();
+            updateWidgetVisibility();
+        });
+        
+        document.getElementById('showSearchWidget').addEventListener('change', (e) => {
+            showSearchWidget = e.target.checked;
+            saveSettings();
+            updateWidgetVisibility();
         });
     }
 
@@ -1186,7 +1252,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     function initializePositions() {
         const clockWidget = document.querySelector('.clock-weather-widget');
-        const statsSection = document.querySelector('.stats-section');
         
         // Set clock position
         if (clockPosition.top !== 24 || clockPosition.right !== 24) {
@@ -1194,18 +1259,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             clockWidget.style.right = clockPosition.right + 'px';
         }
         
-        // Set stats position
-        if (statsPosition.top !== null && statsPosition.left !== null) {
-            statsSection.style.position = 'fixed';
-            statsSection.style.top = statsPosition.top + 'px';
-            statsSection.style.left = statsPosition.left + 'px';
-            statsSection.style.justifyContent = 'flex-start';
-            statsSection.style.margin = '0';
-        }
-        
-        // Make elements draggable
+        // Make clock draggable
         makeDraggable(clockWidget, clockPosition, false);
-        makeDraggable(statsSection, statsPosition, true);
     }
     
     function setupDragAndDrop(element) {

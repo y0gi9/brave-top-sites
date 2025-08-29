@@ -23,6 +23,12 @@ body {
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
+    transition: opacity 0.3s ease;
+}
+
+.clock-weather-widget.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .clock-display {
@@ -112,11 +118,16 @@ body {
 
 /* Brave Stats Section */
 .stats-section {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 40px;
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 100;
     transition: all 0.3s ease;
-	display: none;
+}
+
+.stats-section.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .stats-section:hover {
@@ -125,19 +136,19 @@ body {
 
 .stats-grid {
     display: flex;
-    gap: 40px;
+    gap: 20px;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .stat-item {
     text-align: center;
     background: rgba(0, 0, 0, 0.3);
-    padding: 16px 20px;
+    padding: 12px 16px;
     border-radius: 12px;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    min-width: 140px;
+    min-width: 120px;
     transition: all 0.3s ease;
 }
 
@@ -147,18 +158,18 @@ body {
 }
 
 .stat-number {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 600;
     color: #fff;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .stat-label {
-    font-size: 12px;
+    font-size: 10px;
     color: rgba(255, 255, 255, 0.8);
     font-weight: 400;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
 }
 
 /* Search Section */
@@ -166,7 +177,12 @@ body {
     display: flex;
     justify-content: center;
     margin-bottom: 50px;
-	display: none;
+    transition: opacity 0.3s ease;
+}
+
+.search-section.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .search-container {
@@ -227,27 +243,36 @@ body {
 
 .top-sites-controls {
     display: flex;
-    gap: 12px;
+    gap: 8px;
+    align-items: center;
 }
 
 .toggle-view-btn, .show-more-btn {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: #fff;
-    padding: 8px 16px;
-    border-radius: 20px;
+    padding: 6px 12px;
+    border-radius: 16px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
     backdrop-filter: blur(10px);
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    min-width: auto;
+    white-space: nowrap;
+}
+
+.toggle-view-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
 .toggle-view-btn:hover, .show-more-btn:hover {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .top-sites-grid {
@@ -571,6 +596,38 @@ body {
     transform: translateY(-1px);
 }
 
+/* Widget Controls */
+.widget-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.checkbox-label:hover {
+    color: #fff;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4CAF50;
+    cursor: pointer;
+}
+
+.checkbox-label span {
+    user-select: none;
+}
+
 /* Wallpaper Controls */
 .wallpaper-controls {
     position: fixed;
@@ -725,15 +782,44 @@ body {
     }
     
     .stats-grid {
-        gap: 20px;
+        gap: 15px;
+    }
+    
+    .stat-item {
+        min-width: 100px;
+        padding: 10px 12px;
+    }
+    
+    .stat-number {
+        font-size: 18px;
+    }
+    
+    .stat-label {
+        font-size: 9px;
     }
 }
 
 @media (max-width: 768px) {
+    .stats-section {
+        top: 16px;
+        left: 16px;
+    }
+    
     .stats-grid {
-        flex-direction: column;
-        gap: 16px;
-        align-items: center;
+        gap: 12px;
+    }
+    
+    .stat-item {
+        min-width: 90px;
+        padding: 8px 10px;
+    }
+    
+    .stat-number {
+        font-size: 16px;
+    }
+    
+    .stat-label {
+        font-size: 8px;
     }
     
     .top-sites-grid {
@@ -744,6 +830,20 @@ body {
     .top-sites-header {
         flex-direction: column;
         gap: 12px;
+    }
+    
+    .top-sites-controls {
+        gap: 6px;
+    }
+    
+    .toggle-view-btn, .show-more-btn {
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+    
+    .toggle-view-btn svg {
+        width: 12px;
+        height: 12px;
     }
 }
 
