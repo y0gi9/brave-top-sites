@@ -52,6 +52,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     let timeFormat = settings.timeFormat || '12h';
     let tempFormat = settings.tempFormat || 'fahrenheit';
     let clockPosition = settings.clockPosition || { top: 24, right: 24 };
+    let weatherPosition = settings.weatherPosition || { top: 100, right: 24 };
+    let searchPosition = settings.searchPosition || { top: 200, left: 50, transform: 'translateX(-50%)' };
+    let statsPosition = settings.statsPosition || { top: 24, left: 24 };
     let showClockWidget = settings.showClockWidget !== false; // Default to true
     let showWeatherWidget = settings.showWeatherWidget !== false; // Default to true
     let showStatsWidget = settings.showStatsWidget !== false; // Default to true
@@ -100,6 +103,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     setTimeout(() => {
         initializePositions();
     }, 100);
+    
+    // Add window resize listener for grid snapping
+    window.addEventListener('resize', () => {
+        snapWidgetsToGrid();
+    });
+    
+    // Add grid toggle functionality (hold Ctrl+G to show/hide grid)
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'g') {
+            e.preventDefault();
+            toggleGrid();
+        }
+    });
     
     // Debug: Test tabs API immediately on load
     setTimeout(() => {
@@ -224,6 +240,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             timeFormat: timeFormat,
             tempFormat: tempFormat,
             clockPosition: clockPosition,
+            weatherPosition: weatherPosition,
+            searchPosition: searchPosition,
+            statsPosition: statsPosition,
             showClockWidget: showClockWidget,
             showWeatherWidget: showWeatherWidget,
             showStatsWidget: showStatsWidget,
@@ -1196,7 +1215,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         setInterval(updateClock, 1000);
     }
     
-    function makeDraggable(element, positionState, isStats = false) {
+    function makeDraggable(element, positionState, isStats = false, isSearch = false) {
         let isDragging = false;
         let dragStartX = 0;
         let dragStartY = 0;
@@ -1216,6 +1235,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             startTop = rect.top;
             
             element.style.transition = 'none';
+            
+            // Show grid when dragging starts
+            let gridOverlay = document.getElementById('gridOverlay');
+            if (!gridOverlay) {
+                createGridOverlay();
+                gridOverlay = document.getElementById('gridOverlay');
+            }
+            gridOverlay.classList.remove('hidden');
+            
             e.preventDefault();
         });
         
@@ -1235,14 +1263,23 @@ document.addEventListener('DOMContentLoaded', async function() {
             const constrainedLeft = Math.max(0, Math.min(maxLeft, newLeft));
             const constrainedTop = Math.max(0, Math.min(maxTop, newTop));
             
+            // Grid snapping (20px grid)
+            const gridSize = 20;
+            const snappedLeft = Math.round(constrainedLeft / gridSize) * gridSize;
+            const snappedTop = Math.round(constrainedTop / gridSize) * gridSize;
+            
             element.style.position = 'fixed';
-            element.style.left = constrainedLeft + 'px';
-            element.style.top = constrainedTop + 'px';
+            element.style.left = snappedLeft + 'px';
+            element.style.top = snappedTop + 'px';
             
             if (isStats) {
                 element.style.right = 'auto';
                 element.style.justifyContent = 'flex-start';
                 element.style.margin = '0';
+            } else if (isSearch) {
+                element.style.right = 'auto';
+                element.style.transform = 'none';
+                element.style.left = snappedLeft + 'px';
             } else {
                 element.style.right = 'auto';
             }
@@ -1253,11 +1290,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 isDragging = false;
                 element.style.transition = '';
                 
+                // Hide grid when dragging ends
+                const gridOverlay = document.getElementById('gridOverlay');
+                if (gridOverlay) {
+                    gridOverlay.classList.add('hidden');
+                }
+                
                 // Save position
                 const rect = element.getBoundingClientRect();
                 if (isStats) {
                     positionState.top = rect.top;
                     positionState.left = rect.left;
+                } else if (isSearch) {
+                    positionState.top = rect.top;
+                    positionState.left = rect.left;
+                    positionState.transform = 'none';
                 } else {
                     positionState.top = rect.top;
                     positionState.right = window.innerWidth - rect.right;
@@ -1271,6 +1318,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     function initializePositions() {
         const clockWidget = document.querySelector('.clock-widget');
         const weatherWidget = document.querySelector('.weather-widget');
+        const searchWidget = document.querySelector('.search-section');
+        const statsWidget = document.querySelector('.stats-section');
         
         // Set clock position
         if (clockPosition.top !== 24 || clockPosition.right !== 24) {
@@ -1278,9 +1327,120 @@ document.addEventListener('DOMContentLoaded', async function() {
             clockWidget.style.right = clockPosition.right + 'px';
         }
         
-        // Make both widgets draggable
+        // Set weather position
+        if (weatherPosition.top !== 100 || weatherPosition.right !== 24) {
+            weatherWidget.style.top = weatherPosition.top + 'px';
+            weatherWidget.style.right = weatherPosition.right + 'px';
+        }
+        
+        // Set search position
+        if (searchPosition.top !== 200 || searchPosition.left !== 50) {
+            searchWidget.style.top = searchPosition.top + 'px';
+            if (typeof searchPosition.left === 'number') {
+                searchWidget.style.left = searchPosition.left + 'px';
+                searchWidget.style.transform = 'none';
+            } else {
+                searchWidget.style.left = searchPosition.left + '%';
+                searchWidget.style.transform = searchPosition.transform || 'translateX(-50%)';
+            }
+        }
+        
+        // Set stats position
+        if (statsPosition.top !== 24 || statsPosition.left !== 24) {
+            statsWidget.style.top = statsPosition.top + 'px';
+            statsWidget.style.left = statsPosition.left + 'px';
+        }
+        
+        // Make all widgets draggable
         makeDraggable(clockWidget, clockPosition, false);
-        makeDraggable(weatherWidget, { top: 100, right: 24 }, false);
+        makeDraggable(weatherWidget, weatherPosition, false);
+        makeDraggable(searchWidget, searchPosition, false, true); // isSearch = true
+        makeDraggable(statsWidget, statsPosition, true); // isStats = true
+    }
+    
+    function snapWidgetsToGrid() {
+        const gridSize = 20;
+        const clockWidget = document.querySelector('.clock-widget');
+        const weatherWidget = document.querySelector('.weather-widget');
+        const searchWidget = document.querySelector('.search-section');
+        const statsWidget = document.querySelector('.stats-section');
+        
+        // Snap clock widget
+        if (clockWidget && (clockPosition.top !== 24 || clockPosition.right !== 24)) {
+            const rect = clockWidget.getBoundingClientRect();
+            const snappedTop = Math.round(rect.top / gridSize) * gridSize;
+            const snappedRight = Math.round((window.innerWidth - rect.right) / gridSize) * gridSize;
+            clockWidget.style.top = snappedTop + 'px';
+            clockWidget.style.right = snappedRight + 'px';
+            clockPosition.top = snappedTop;
+            clockPosition.right = snappedRight;
+        }
+        
+        // Snap weather widget
+        if (weatherWidget && (weatherPosition.top !== 100 || weatherPosition.right !== 24)) {
+            const rect = weatherWidget.getBoundingClientRect();
+            const snappedTop = Math.round(rect.top / gridSize) * gridSize;
+            const snappedRight = Math.round((window.innerWidth - rect.right) / gridSize) * gridSize;
+            weatherWidget.style.top = snappedTop + 'px';
+            weatherWidget.style.right = snappedRight + 'px';
+            weatherPosition.top = snappedTop;
+            weatherPosition.right = snappedRight;
+        }
+        
+        // Snap search widget
+        if (searchWidget && (searchPosition.top !== 200 || searchPosition.left !== 50)) {
+            const rect = searchWidget.getBoundingClientRect();
+            const snappedTop = Math.round(rect.top / gridSize) * gridSize;
+            const snappedLeft = Math.round(rect.left / gridSize) * gridSize;
+            searchWidget.style.top = snappedTop + 'px';
+            searchWidget.style.left = snappedLeft + 'px';
+            searchWidget.style.transform = 'none';
+            searchPosition.top = snappedTop;
+            searchPosition.left = snappedLeft;
+            searchPosition.transform = 'none';
+        }
+        
+        // Snap stats widget
+        if (statsWidget && (statsPosition.top !== 24 || statsPosition.left !== 24)) {
+            const rect = statsWidget.getBoundingClientRect();
+            const snappedTop = Math.round(rect.top / gridSize) * gridSize;
+            const snappedLeft = Math.round(rect.left / gridSize) * gridSize;
+            statsWidget.style.top = snappedTop + 'px';
+            statsWidget.style.left = snappedLeft + 'px';
+            statsPosition.top = snappedTop;
+            statsPosition.left = snappedLeft;
+        }
+        
+        saveSettings();
+    }
+    
+    function toggleGrid() {
+        let gridOverlay = document.getElementById('gridOverlay');
+        if (!gridOverlay) {
+            createGridOverlay();
+            gridOverlay = document.getElementById('gridOverlay');
+        }
+        gridOverlay.classList.toggle('hidden');
+    }
+    
+    function createGridOverlay() {
+        const gridOverlay = document.createElement('div');
+        gridOverlay.id = 'gridOverlay';
+        gridOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.3;
+        `;
+        document.body.appendChild(gridOverlay);
     }
     
     function setupDragAndDrop(element) {
