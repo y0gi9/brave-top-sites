@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let tempFormat = settings.tempFormat || 'fahrenheit';
     let clockPosition = settings.clockPosition || { top: 24, right: 24 };
     let showClockWidget = settings.showClockWidget !== false; // Default to true
+    let showWeatherWidget = settings.showWeatherWidget !== false; // Default to true
     let showStatsWidget = settings.showStatsWidget !== false; // Default to true
     let showSearchWidget = settings.showSearchWidget !== false; // Default to true
 
@@ -176,6 +177,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     function initializeWidgetVisibility() {
         // Set initial checkbox states
         document.getElementById('showClockWidget').checked = showClockWidget;
+        document.getElementById('showWeatherWidget').checked = showWeatherWidget;
         document.getElementById('showStatsWidget').checked = showStatsWidget;
         document.getElementById('showSearchWidget').checked = showSearchWidget;
         
@@ -184,7 +186,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function updateWidgetVisibility() {
-        const clockWidget = document.querySelector('.clock-weather-widget');
+        const clockWidget = document.querySelector('.clock-widget');
+        const weatherWidget = document.querySelector('.weather-widget');
         const statsSection = document.querySelector('.stats-section');
         const searchSection = document.querySelector('.search-section');
         
@@ -192,6 +195,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             clockWidget.classList.remove('hidden');
         } else {
             clockWidget.classList.add('hidden');
+        }
+        
+        if (showWeatherWidget) {
+            weatherWidget.classList.remove('hidden');
+        } else {
+            weatherWidget.classList.add('hidden');
         }
         
         if (showStatsWidget) {
@@ -216,6 +225,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             tempFormat: tempFormat,
             clockPosition: clockPosition,
             showClockWidget: showClockWidget,
+            showWeatherWidget: showWeatherWidget,
             showStatsWidget: showStatsWidget,
             showSearchWidget: showSearchWidget
         };
@@ -527,6 +537,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     siteCount: currentSiteCount,
                     currentView: currentView,
                     showClockWidget: showClockWidget,
+                    showWeatherWidget: showWeatherWidget,
                     showStatsWidget: showStatsWidget,
                     showSearchWidget: showSearchWidget
                 },
@@ -565,6 +576,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                                 currentSiteCount = config.settings.siteCount || 12;
                                 currentView = config.settings.currentView || 'topSites';
                                 showClockWidget = config.settings.showClockWidget !== false;
+                                showWeatherWidget = config.settings.showWeatherWidget !== false;
                                 showStatsWidget = config.settings.showStatsWidget !== false;
                                 showSearchWidget = config.settings.showSearchWidget !== false;
                             }
@@ -638,6 +650,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Widget visibility controls
         document.getElementById('showClockWidget').addEventListener('change', (e) => {
             showClockWidget = e.target.checked;
+            saveSettings();
+            updateWidgetVisibility();
+        });
+        
+        document.getElementById('showWeatherWidget').addEventListener('change', (e) => {
+            showWeatherWidget = e.target.checked;
             saveSettings();
             updateWidgetVisibility();
         });
@@ -1251,7 +1269,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function initializePositions() {
-        const clockWidget = document.querySelector('.clock-weather-widget');
+        const clockWidget = document.querySelector('.clock-widget');
+        const weatherWidget = document.querySelector('.weather-widget');
         
         // Set clock position
         if (clockPosition.top !== 24 || clockPosition.right !== 24) {
@@ -1259,8 +1278,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             clockWidget.style.right = clockPosition.right + 'px';
         }
         
-        // Make clock draggable
+        // Make both widgets draggable
         makeDraggable(clockWidget, clockPosition, false);
+        makeDraggable(weatherWidget, { top: 100, right: 24 }, false);
     }
     
     function setupDragAndDrop(element) {
