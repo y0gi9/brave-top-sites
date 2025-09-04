@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let tempFormat = settings.tempFormat || 'fahrenheit';
     let clockPosition = settings.clockPosition || { top: 24, right: 24 };
     let weatherPosition = settings.weatherPosition || { top: 100, right: 24 };
-    let searchPosition = settings.searchPosition || { top: 200, left: 50, transform: 'translateX(-50%)' };
+    let searchPosition = settings.searchPosition || { bottom: 40, left: 50, transform: 'translateX(-50%)' };
     let statsPosition = settings.statsPosition || { top: 24, left: 24 };
     let showClockWidget = settings.showClockWidget !== false; // Default to true
     let showWeatherWidget = settings.showWeatherWidget !== false; // Default to true
@@ -207,13 +207,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         const statsSection = document.querySelector('.stats-section');
         const searchSection = document.querySelector('.search-section');
         
-        if (showClockWidget) {
+        // Hide clock and weather widgets in favorites view since they're shown as tiles
+        if (showClockWidget && currentView !== 'favorites') {
             clockWidget.classList.remove('hidden');
         } else {
             clockWidget.classList.add('hidden');
         }
         
-        if (showWeatherWidget) {
+        if (showWeatherWidget && currentView !== 'favorites') {
             weatherWidget.classList.remove('hidden');
         } else {
             weatherWidget.classList.add('hidden');
@@ -334,6 +335,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         toggleViewBtn.addEventListener('click', () => {
             currentView = currentView === 'topSites' ? 'favorites' : 'topSites';
             updateViewToggle();
+            updateWidgetVisibility();
             saveSettings();
             renderTopSites();
         });
@@ -981,6 +983,29 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Filter sites based on current view
         if (currentView === 'favorites') {
             sitesToShow = customSites.slice(0, currentSiteCount);
+            
+            // Add clock and weather widgets as tiles in favorites view
+            if (showClockWidget) {
+                sitesToShow.unshift({
+                    id: 'clock-widget',
+                    title: 'Clock',
+                    url: '#',
+                    favicon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjIiLz4KPHBhdGggZD0iTTEyIDZ2Nmw0IDIiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K',
+                    isWidget: true,
+                    widgetType: 'clock'
+                });
+            }
+            
+            if (showWeatherWidget) {
+                sitesToShow.unshift({
+                    id: 'weather-widget',
+                    title: 'Weather',
+                    url: '#',
+                    favicon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJhNiA2IDAgMCAxIDYgNmMwIDIuNS0yIDQuNS00LjUgNC41UzcuNSAxMC41IDcuNSA4YTYgNiAwIDAgMSAzLTZaIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIi8+CjxwYXRoIGQ9Ik0xMiAxMnY0TTkgMTRoNiIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPgo=',
+                    isWidget: true,
+                    widgetType: 'weather'
+                });
+            }
         } else {
             // Show top sites (real sites + popular sites, but not custom ones)
             const nonCustomSites = allSites.filter(site => !site.isCustom);
@@ -1004,19 +1029,46 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             }
             
+            if (site.isWidget) {
+                siteElement.classList.add('widget-tile');
+                siteElement.classList.add('draggable');
+                siteElement.draggable = true;
+            }
+            
             // Use stored favicon for custom sites, or generate for others
             const favicon = site.favicon || getFavicon(site.url);
             
-            siteElement.innerHTML = `
-                <div class="site-icon">
-                    <img src="${favicon}" alt="${site.title}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNCIgZmlsbD0iI2Y1ZjVmNSIvPgo8L3N2Zz4K'">
-                </div>
-                <div class="site-title">${site.title}</div>
-                ${site.isCustom ? '<div class="site-actions"><button class="edit-site-btn" title="Edit">✏️</button><button class="delete-site-btn" title="Delete">×</button></div>' : ''}
-            `;
+            if (site.isWidget) {
+                // Widget tiles show different content
+                if (site.widgetType === 'clock') {
+                    siteElement.innerHTML = `
+                        <div class="widget-content">
+                            <div class="widget-time" id="widget-time">--:--</div>
+                            <div class="widget-date" id="widget-date">-- --- --</div>
+                        </div>
+                        <div class="site-title">${site.title}</div>
+                    `;
+                } else if (site.widgetType === 'weather') {
+                    siteElement.innerHTML = `
+                        <div class="widget-content">
+                            <div class="widget-temp" id="widget-temp">--°</div>
+                            <div class="widget-desc" id="widget-desc">Loading...</div>
+                        </div>
+                        <div class="site-title">${site.title}</div>
+                    `;
+                }
+            } else {
+                siteElement.innerHTML = `
+                    <div class="site-icon">
+                        <img src="${favicon}" alt="${site.title}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNCIgZmlsbD0iI2Y1ZjVmNSIvPgo8L3N2Zz4K'">
+                    </div>
+                    <div class="site-title">${site.title}</div>
+                    ${site.isCustom ? '<div class="site-actions"><button class="edit-site-btn" title="Edit">✏️</button><button class="delete-site-btn" title="Delete">×</button></div>' : ''}
+                `;
+            }
             
-            // Add drag and drop event listeners for custom sites in favorites view
-            if (site.isCustom && currentView === 'favorites') {
+            // Add drag and drop event listeners for custom sites and widgets in favorites view
+            if ((site.isCustom || site.isWidget) && currentView === 'favorites') {
                 setupDragAndDrop(siteElement);
             }
             
@@ -1049,6 +1101,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (e.target.classList.contains('site-actions')) {
                     e.stopPropagation();
                     return;
+                }
+                
+                // Handle widget clicks
+                if (site.isWidget) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return; // Widgets don't navigate anywhere
                 }
                 
                 // Navigate to site
@@ -1134,6 +1193,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Setup drop zones for drag and drop functionality
         setupDropZones();
+        
+        // Update widget tiles with current data after rendering
+        updateWidgetTiles();
     }
 
     function updateGridDisplay() {
@@ -1178,6 +1240,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         currentTimeEl.textContent = timeString;
         currentDateEl.textContent = dateString;
+        
+        // Update widget tiles if they exist
+        const widgetTime = document.getElementById('widget-time');
+        const widgetDate = document.getElementById('widget-date');
+        if (widgetTime) widgetTime.textContent = timeString;
+        if (widgetDate) widgetDate.textContent = dateString;
+        
+        // Also update any widget tiles in the grid
+        updateWidgetTiles();
     }
     
     async function updateWeather() {
@@ -1197,6 +1268,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                     <div class="weather-temp">${temp}${unit}</div>
                     <div class="weather-desc">${desc}</div>
                 `;
+                
+                // Update widget tiles if they exist
+                const widgetTemp = document.getElementById('widget-temp');
+                const widgetDesc = document.getElementById('widget-desc');
+                if (widgetTemp) widgetTemp.textContent = `${temp}${unit}`;
+                if (widgetDesc) widgetDesc.textContent = desc;
+                
+                // Also update any widget tiles in the grid
+                updateWidgetTiles();
             } else {
                 throw new Error('Invalid weather data');
             }
@@ -1207,6 +1287,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <div class="weather-temp">--${unit}</div>
                 <div class="weather-desc">Weather unavailable</div>
             `;
+            
+            // Update widget tiles if they exist
+            const widgetTemp = document.getElementById('widget-temp');
+            const widgetDesc = document.getElementById('widget-desc');
+            if (widgetTemp) widgetTemp.textContent = `--${unit}`;
+            if (widgetDesc) widgetDesc.textContent = 'Weather unavailable';
+            
+            // Also update any widget tiles in the grid
+            updateWidgetTiles();
         }
     }
     
@@ -1221,6 +1310,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         let dragStartY = 0;
         let startLeft = 0;
         let startTop = 0;
+        
+        // Don't make search bar draggable
+        if (isSearch) {
+            element.style.cursor = 'default';
+            element.style.userSelect = 'auto';
+            return; // Exit early for search bar
+        }
         
         element.style.cursor = 'move';
         element.style.userSelect = 'none';
@@ -1277,11 +1373,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                 element.style.justifyContent = 'flex-start';
                 element.style.margin = '0';
             } else if (isSearch) {
+                // Keep search bar at bottom center - don't allow dragging
+                element.style.bottom = '40px';
+                element.style.left = '50%';
+                element.style.transform = 'translateX(-50%)';
+                element.style.top = 'auto';
                 element.style.right = 'auto';
-                element.style.transform = 'none';
-                element.style.left = snappedLeft + 'px';
             } else {
-                element.style.right = 'auto';
+                // Clock and weather widgets use right positioning
+                element.style.right = (window.innerWidth - snappedLeft - element.offsetWidth) + 'px';
+                element.style.left = 'auto';
             }
         });
         
@@ -1301,13 +1402,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (isStats) {
                     positionState.top = rect.top;
                     positionState.left = rect.left;
+                    // Ensure final position is set correctly
+                    element.style.top = rect.top + 'px';
+                    element.style.left = rect.left + 'px';
+                    element.style.right = 'auto';
                 } else if (isSearch) {
-                    positionState.top = rect.top;
-                    positionState.left = rect.left;
-                    positionState.transform = 'none';
+                    // Keep search bar at bottom center
+                    positionState.bottom = 40;
+                    positionState.left = 50;
+                    positionState.transform = 'translateX(-50%)';
+                    // Ensure the final position is set correctly
+                    element.style.bottom = '40px';
+                    element.style.left = '50%';
+                    element.style.transform = 'translateX(-50%)';
+                    element.style.top = 'auto';
+                    element.style.right = 'auto';
                 } else {
+                    // Clock and weather widgets
                     positionState.top = rect.top;
                     positionState.right = window.innerWidth - rect.right;
+                    // Ensure final position is set correctly
+                    element.style.top = rect.top + 'px';
+                    element.style.right = (window.innerWidth - rect.right) + 'px';
+                    element.style.left = 'auto';
                 }
                 
                 saveSettings();
@@ -1321,35 +1438,27 @@ document.addEventListener('DOMContentLoaded', async function() {
         const searchWidget = document.querySelector('.search-section');
         const statsWidget = document.querySelector('.stats-section');
         
-        // Set clock position
-        if (clockPosition.top !== 24 || clockPosition.right !== 24) {
-            clockWidget.style.top = clockPosition.top + 'px';
-            clockWidget.style.right = clockPosition.right + 'px';
-        }
+        // Set clock position - always set position
+        clockWidget.style.top = clockPosition.top + 'px';
+        clockWidget.style.right = clockPosition.right + 'px';
+        clockWidget.style.left = 'auto';
         
-        // Set weather position
-        if (weatherPosition.top !== 100 || weatherPosition.right !== 24) {
-            weatherWidget.style.top = weatherPosition.top + 'px';
-            weatherWidget.style.right = weatherPosition.right + 'px';
-        }
+        // Set weather position - always set position
+        weatherWidget.style.top = weatherPosition.top + 'px';
+        weatherWidget.style.right = weatherPosition.right + 'px';
+        weatherWidget.style.left = 'auto';
         
-        // Set search position
-        if (searchPosition.top !== 200 || searchPosition.left !== 50) {
-            searchWidget.style.top = searchPosition.top + 'px';
-            if (typeof searchPosition.left === 'number') {
-                searchWidget.style.left = searchPosition.left + 'px';
-                searchWidget.style.transform = 'none';
-            } else {
-                searchWidget.style.left = searchPosition.left + '%';
-                searchWidget.style.transform = searchPosition.transform || 'translateX(-50%)';
-            }
-        }
+        // Set search position - always set position
+        searchWidget.style.bottom = searchPosition.bottom + 'px';
+        searchWidget.style.left = searchPosition.left + '%';
+        searchWidget.style.transform = searchPosition.transform;
+        searchWidget.style.top = 'auto';
+        searchWidget.style.right = 'auto';
         
-        // Set stats position
-        if (statsPosition.top !== 24 || statsPosition.left !== 24) {
-            statsWidget.style.top = statsPosition.top + 'px';
-            statsWidget.style.left = statsPosition.left + 'px';
-        }
+        // Set stats position - always set position
+        statsWidget.style.top = statsPosition.top + 'px';
+        statsWidget.style.left = statsPosition.left + 'px';
+        statsWidget.style.right = 'auto';
         
         // Make all widgets draggable
         makeDraggable(clockWidget, clockPosition, false);
@@ -1365,48 +1474,52 @@ document.addEventListener('DOMContentLoaded', async function() {
         const searchWidget = document.querySelector('.search-section');
         const statsWidget = document.querySelector('.stats-section');
         
-        // Snap clock widget
-        if (clockWidget && (clockPosition.top !== 24 || clockPosition.right !== 24)) {
+        // Snap clock widget - always update position on resize
+        if (clockWidget) {
             const rect = clockWidget.getBoundingClientRect();
             const snappedTop = Math.round(rect.top / gridSize) * gridSize;
             const snappedRight = Math.round((window.innerWidth - rect.right) / gridSize) * gridSize;
             clockWidget.style.top = snappedTop + 'px';
             clockWidget.style.right = snappedRight + 'px';
+            clockWidget.style.left = 'auto';
             clockPosition.top = snappedTop;
             clockPosition.right = snappedRight;
         }
         
-        // Snap weather widget
-        if (weatherWidget && (weatherPosition.top !== 100 || weatherPosition.right !== 24)) {
+        // Snap weather widget - always update position on resize
+        if (weatherWidget) {
             const rect = weatherWidget.getBoundingClientRect();
             const snappedTop = Math.round(rect.top / gridSize) * gridSize;
             const snappedRight = Math.round((window.innerWidth - rect.right) / gridSize) * gridSize;
             weatherWidget.style.top = snappedTop + 'px';
             weatherWidget.style.right = snappedRight + 'px';
+            weatherWidget.style.left = 'auto';
             weatherPosition.top = snappedTop;
             weatherPosition.right = snappedRight;
         }
         
-        // Snap search widget
-        if (searchWidget && (searchPosition.top !== 200 || searchPosition.left !== 50)) {
-            const rect = searchWidget.getBoundingClientRect();
-            const snappedTop = Math.round(rect.top / gridSize) * gridSize;
-            const snappedLeft = Math.round(rect.left / gridSize) * gridSize;
-            searchWidget.style.top = snappedTop + 'px';
-            searchWidget.style.left = snappedLeft + 'px';
-            searchWidget.style.transform = 'none';
-            searchPosition.top = snappedTop;
-            searchPosition.left = snappedLeft;
-            searchPosition.transform = 'none';
+        // Snap search widget - always update position on resize
+        if (searchWidget) {
+            // Keep search bar at bottom center
+            searchWidget.style.bottom = '40px';
+            searchWidget.style.left = '50%';
+            searchWidget.style.transform = 'translateX(-50%)';
+            searchWidget.style.top = 'auto';
+            searchWidget.style.right = 'auto';
+            
+            searchPosition.bottom = 40;
+            searchPosition.left = 50;
+            searchPosition.transform = 'translateX(-50%)';
         }
         
-        // Snap stats widget
-        if (statsWidget && (statsPosition.top !== 24 || statsPosition.left !== 24)) {
+        // Snap stats widget - always update position on resize
+        if (statsWidget) {
             const rect = statsWidget.getBoundingClientRect();
             const snappedTop = Math.round(rect.top / gridSize) * gridSize;
             const snappedLeft = Math.round(rect.left / gridSize) * gridSize;
             statsWidget.style.top = snappedTop + 'px';
             statsWidget.style.left = snappedLeft + 'px';
+            statsWidget.style.right = 'auto';
             statsPosition.top = snappedTop;
             statsPosition.left = snappedLeft;
         }
@@ -1609,5 +1722,32 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             localStorage.setItem('braveStats', JSON.stringify(stats));
         }, 60000); // Update every minute
+    }
+
+    function updateWidgetTiles() {
+        // Update clock widget tiles
+        const clockTiles = document.querySelectorAll('.widget-tile');
+        clockTiles.forEach(widget => {
+            const timeElement = widget.querySelector('.widget-time');
+            const dateElement = widget.querySelector('.widget-date');
+            const tempElement = widget.querySelector('.widget-temp');
+            const descElement = widget.querySelector('.widget-desc');
+            
+            if (timeElement && dateElement) {
+                // This is a clock widget
+                timeElement.textContent = currentTimeEl.textContent;
+                dateElement.textContent = currentDateEl.textContent;
+            }
+            
+            if (tempElement && descElement) {
+                // This is a weather widget
+                const weatherTemp = weatherInfoEl.querySelector('.weather-temp');
+                const weatherDesc = weatherInfoEl.querySelector('.weather-desc');
+                if (weatherTemp && weatherDesc) {
+                    tempElement.textContent = weatherTemp.textContent;
+                    descElement.textContent = weatherDesc.textContent;
+                }
+            }
+        });
     }
 });
