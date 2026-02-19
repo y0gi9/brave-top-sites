@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     let showSearchWidget = settings.showSearchWidget !== false; // Default to true
 
     let allSites = [];
-    let customSites = JSON.parse(localStorage.getItem('customTopSites') || '[]');
+    let customSites = loadCustomSitesFromStorage();
     let currentWallpaperIndex = parseInt(localStorage.getItem('wallpaperIndex') || '0');
     let editingSiteId = null;
     
@@ -250,6 +250,66 @@ document.addEventListener('DOMContentLoaded', async function() {
             showSearchWidget: showSearchWidget
         };
         localStorage.setItem('braveExtensionSettings', JSON.stringify(settings));
+    }
+
+    function sanitizeCustomSites(sites) {
+        if (!Array.isArray(sites)) {
+            return [];
+        }
+
+        return sites
+            .filter(site => site && typeof site === 'object')
+            .filter(site => {
+                return (
+                    typeof site.title === 'string' &&
+                    site.title.trim() !== '' &&
+                    typeof site.url === 'string' &&
+                    site.url.trim() !== ''
+                );
+            })
+            .map((site, index) => ({
+                ...site,
+                title: site.title.trim(),
+                url: site.url.trim(),
+                isCustom: true,
+                id: site.id ?? `custom-${Date.now()}-${index}`
+            }));
+    }
+
+    function loadCustomSitesFromStorage() {
+        const rawValue = localStorage.getItem('customTopSites');
+        if (!rawValue) {
+            return [];
+        }
+
+        try {
+            const parsedSites = JSON.parse(rawValue);
+            const sanitizedSites = sanitizeCustomSites(parsedSites);
+
+            if (Array.isArray(parsedSites) && sanitizedSites.length !== parsedSites.length) {
+                localStorage.setItem('customTopSitesCorruptBackup', rawValue);
+                localStorage.setItem('customTopSites', JSON.stringify(sanitizedSites));
+                console.warn('Detected invalid favorites data and repaired it. Backup saved to customTopSitesCorruptBackup.');
+            }
+
+            return sanitizedSites;
+        } catch (error) {
+            localStorage.setItem('customTopSitesCorruptBackup', rawValue);
+            console.error('Failed to parse customTopSites. Backed up corrupt value and reset favorites.', error);
+            return [];
+        }
+    }
+
+    function saveCustomSites(nextSites) {
+        const sanitizedSites = sanitizeCustomSites(nextSites);
+        const previousValue = localStorage.getItem('customTopSites');
+
+        if (previousValue !== null) {
+            localStorage.setItem('customTopSitesBackup', previousValue);
+        }
+
+        customSites = sanitizedSites;
+        localStorage.setItem('customTopSites', JSON.stringify(customSites));
     }
     
     async function fetchFavicon(url) {
@@ -481,7 +541,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 };
                 
                 customSites.push(customSite);
-                localStorage.setItem('customTopSites', JSON.stringify(customSites));
+                saveCustomSites(customSites);
                 
                 siteNameInput.value = '';
                 siteUrlInput.value = '';
@@ -519,7 +579,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         favicon: favicon
                     };
                     
-                    localStorage.setItem('customTopSites', JSON.stringify(customSites));
+                    saveCustomSites(customSites);
                     
                     editSiteNameInput.value = '';
                     editSiteUrlInput.value = '';
@@ -543,8 +603,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Reset sites
         resetSitesBtn.addEventListener('click', () => {
             if (confirm('Reset all custom sites? This action cannot be undone.')) {
-                customSites = [];
-                localStorage.removeItem('customTopSites');
+                saveCustomSites([]);
                 loadTopSites();
             }
         });
@@ -603,9 +662,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                             }
                             
                             // Restore custom sites
-                            if (config.customSites) {
-                                customSites = config.customSites;
-                                localStorage.setItem('customTopSites', JSON.stringify(customSites));
+                            if (Array.isArray(config.customSites)) {
+                                saveCustomSites(config.customSites);
                             }
                             
                             // Restore stats
@@ -825,7 +883,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 };
                 
                 customSites.push(customSite);
-                localStorage.setItem('customTopSites', JSON.stringify(customSites));
+                saveCustomSites(customSites);
                 
                 // Switch to favorites view if not already there
                 if (currentView !== 'favorites') {
@@ -1013,6 +1071,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         topSitesGrid.innerHTML = '';
+        const customSiteIndexById = new Map();
+
+        if (currentView === 'favorites') {
+            customSites.forEach((site, customIndex) => {
+                customSiteIndexById.set(String(site.id), customIndex);
+            });
+        }
         
         sitesToShow.forEach((site, index) => {
             const siteElement = document.createElement('div');
@@ -1026,13 +1091,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (currentView === 'favorites') {
                     siteElement.classList.add('draggable');
                     siteElement.draggable = true;
+                    const customSiteIndex = customSiteIndexById.get(String(site.id));
+                    if (Number.isInteger(customSiteIndex)) {
+                        siteElement.dataset.customSiteIndex = customSiteIndex;
+                    }
                 }
             }
             
             if (site.isWidget) {
                 siteElement.classList.add('widget-tile');
-                siteElement.classList.add('draggable');
-                siteElement.draggable = true;
             }
             
             // Use stored favicon for custom sites, or generate for others
@@ -1067,8 +1134,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                 `;
             }
             
-            // Add drag and drop event listeners for custom sites and widgets in favorites view
-            if ((site.isCustom || site.isWidget) && currentView === 'favorites') {
+            // Only custom favorites participate in reorder operations
+            if (site.isCustom && currentView === 'favorites') {
                 setupDragAndDrop(siteElement);
             }
             
@@ -1089,8 +1156,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (e.target.classList.contains('delete-site-btn')) {
                     // Delete button clicked
                     if (confirm(`Remove "${site.title}" from favorites?`)) {
-                        customSites = customSites.filter(s => s.id !== site.id);
-                        localStorage.setItem('customTopSites', JSON.stringify(customSites));
+                        saveCustomSites(customSites.filter(s => s.id !== site.id));
                         loadTopSites();
                     }
                     e.stopPropagation();
@@ -1557,10 +1623,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function setupDragAndDrop(element) {
-        let dragStartIndex = null;
-        
         element.addEventListener('dragstart', (e) => {
-            dragStartIndex = parseInt(element.dataset.siteIndex);
+            const customSiteIndex = Number.parseInt(element.dataset.customSiteIndex, 10);
+            if (!Number.isInteger(customSiteIndex)) {
+                e.preventDefault();
+                return;
+            }
+
             element.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/html', element.outerHTML);
@@ -1591,7 +1660,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Add drop zones to all custom sites in favorites view
         if (currentView === 'favorites') {
-            const draggableSites = document.querySelectorAll('.top-site.draggable');
+            const draggableSites = document.querySelectorAll('.top-site.draggable[data-custom-site-index]');
             console.log('Found', draggableSites.length, 'draggable sites');
             
             draggableSites.forEach((site, index) => {
@@ -1599,7 +1668,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 site.addEventListener('dragenter', handleDragEnter);
                 site.addEventListener('dragleave', handleDragLeave);
                 site.addEventListener('drop', handleDrop);
-                console.log('Added drop listeners to site', index, ':', site.dataset.siteIndex);
+                console.log('Added drop listeners to site', index, ':', site.dataset.customSiteIndex);
             });
         }
     }
@@ -1633,8 +1702,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
         
-        const dragStartIndex = parseInt(draggedElement.dataset.siteIndex);
-        const dragEndIndex = parseInt(this.dataset.siteIndex);
+        const dragStartIndex = Number.parseInt(draggedElement.dataset.customSiteIndex, 10);
+        const dragEndIndex = Number.parseInt(this.dataset.customSiteIndex, 10);
         
         console.log('Drop event:', {
             dragStartIndex: dragStartIndex,
@@ -1643,7 +1712,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             dropTarget: this
         });
         
-        if (dragStartIndex !== null && dragEndIndex !== null && dragStartIndex !== dragEndIndex) {
+        if (Number.isInteger(dragStartIndex) && Number.isInteger(dragEndIndex) && dragStartIndex !== dragEndIndex) {
             console.log('Reordering favorites from', dragStartIndex, 'to', dragEndIndex);
             reorderFavorites(dragStartIndex, dragEndIndex);
         } else {
@@ -1652,18 +1721,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function reorderFavorites(fromIndex, toIndex) {
+        if (
+            !Number.isInteger(fromIndex) ||
+            !Number.isInteger(toIndex) ||
+            fromIndex < 0 ||
+            toIndex < 0 ||
+            fromIndex >= customSites.length ||
+            toIndex >= customSites.length
+        ) {
+            console.warn('Rejected invalid favorites reorder request:', { fromIndex, toIndex, length: customSites.length });
+            showNotification('Unable to reorder favorites. Please try again.');
+            return;
+        }
+
         // Create a copy of the custom sites array
         const newCustomSites = [...customSites];
         
         // Remove the dragged item from its original position
         const draggedSite = newCustomSites.splice(fromIndex, 1)[0];
+
+        if (!draggedSite) {
+            console.warn('No favorite found at drag start index:', fromIndex);
+            showNotification('Unable to reorder favorites. Please try again.');
+            return;
+        }
         
         // Insert it at the new position
         newCustomSites.splice(toIndex, 0, draggedSite);
         
         // Update the global array and save to storage
-        customSites = newCustomSites;
-        localStorage.setItem('customTopSites', JSON.stringify(customSites));
+        saveCustomSites(newCustomSites);
         
         // Re-render the sites to reflect the new order
         renderTopSites();
