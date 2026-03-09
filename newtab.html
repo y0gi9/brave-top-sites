@@ -28,16 +28,15 @@
     <!-- Weather Widget -->
     <div class="weather-widget">
         <div class="weather-display">
-            <div class="weather-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 2a6 6 0 0 1 6 6c0 2.5-2 4.5-4.5 4.5S7 10.5 7 8a6 6 0 0 1 3-6Z" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M10 12v4M7 14h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-            </div>
+            <div class="weather-icon" id="weatherIcon">--</div>
             <div class="weather-content">
                 <div id="weatherInfo" class="weather">
-                    <div class="weather-temp">--°</div>
-                    <div class="weather-desc">Loading...</div>
+                    <div class="weather-location">Loading weather...</div>
+                    <div class="weather-temp-row">
+                        <div class="weather-temp">--°</div>
+                        <div class="weather-range">H -- / L --</div>
+                    </div>
+                    <div class="weather-desc">Fetching latest conditions</div>
                 </div>
             </div>
         </div>
@@ -115,6 +114,7 @@
                         <div class="option-group">
                             <button id="addFromTabBtn" class="add-from-tab-btn">Add from Open Tabs</button>
                             <button id="addCustomSiteBtn" class="add-site-btn">Add Custom Site</button>
+                            <button id="addFolderBtn" class="add-site-btn">Add Folder</button>
                         </div>
                         <div class="option-group">
                             <button id="resetSitesBtn" class="reset-btn">Reset to Default</button>
@@ -208,6 +208,12 @@
                     <label for="siteIcon">Icon URL (optional):</label>
                     <input type="url" id="siteIcon" placeholder="https://example.com/icon.png">
                 </div>
+                <div class="form-group">
+                    <label for="siteFolderSelect">Folder:</label>
+                    <select id="siteFolderSelect">
+                        <option value="">No folder</option>
+                    </select>
+                </div>
                 <div class="modal-actions">
                     <button id="saveSiteBtn" class="save-btn">Save</button>
                     <button id="cancelSiteBtn" class="cancel-btn">Cancel</button>
@@ -233,9 +239,57 @@
                     <label for="editSiteIcon">Icon URL (optional):</label>
                     <input type="url" id="editSiteIcon" placeholder="https://example.com/icon.png">
                 </div>
+                <div class="form-group">
+                    <label for="editSiteFolderSelect">Folder:</label>
+                    <select id="editSiteFolderSelect">
+                        <option value="">No folder</option>
+                    </select>
+                </div>
                 <div class="modal-actions">
                     <button id="updateSiteBtn" class="save-btn">Update</button>
                     <button id="cancelEditBtn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Folder Modal -->
+    <div id="addFolderModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Add Folder</h3>
+            <div class="modal-form">
+                <div class="form-group">
+                    <label for="folderName">Folder Name:</label>
+                    <input type="text" id="folderName" placeholder="Enter folder name">
+                </div>
+                <div class="form-group">
+                    <label for="folderImage">Folder Image URL (optional):</label>
+                    <input type="url" id="folderImage" placeholder="https://example.com/folder-image.png">
+                </div>
+                <div class="modal-actions">
+                    <button id="saveFolderBtn" class="save-btn">Save</button>
+                    <button id="cancelFolderBtn" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Folder Modal -->
+    <div id="editFolderModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Edit Folder</h3>
+            <div class="modal-form">
+                <div class="form-group">
+                    <label for="editFolderName">Folder Name:</label>
+                    <input type="text" id="editFolderName" placeholder="Enter folder name">
+                </div>
+                <div class="form-group">
+                    <label for="editFolderImage">Folder Image URL (optional):</label>
+                    <input type="url" id="editFolderImage" placeholder="https://example.com/folder-image.png">
+                </div>
+                <div class="modal-actions">
+                    <button id="updateFolderBtn" class="save-btn">Update</button>
+                    <button id="cancelEditFolderBtn" class="cancel-btn">Cancel</button>
                 </div>
             </div>
         </div>

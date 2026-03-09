@@ -10,17 +10,20 @@ document.addEventListener('DOMContentLoaded', async function() {
     const closePanelBtn = document.getElementById('closePanelBtn');
     const siteCountSelect = document.getElementById('siteCountSelect');
     const addCustomSiteBtn = document.getElementById('addCustomSiteBtn');
+    const addFolderBtn = document.getElementById('addFolderBtn');
     const resetSitesBtn = document.getElementById('resetSitesBtn');
     const addSiteModal = document.getElementById('addSiteModal');
     const saveSiteBtn = document.getElementById('saveSiteBtn');
     const cancelSiteBtn = document.getElementById('cancelSiteBtn');
     const siteNameInput = document.getElementById('siteName');
     const siteUrlInput = document.getElementById('siteUrl');
+    const siteFolderSelect = document.getElementById('siteFolderSelect');
     const editSiteModal = document.getElementById('editSiteModal');
     const updateSiteBtn = document.getElementById('updateSiteBtn');
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     const editSiteNameInput = document.getElementById('editSiteName');
     const editSiteUrlInput = document.getElementById('editSiteUrl');
+    const editSiteFolderSelect = document.getElementById('editSiteFolderSelect');
     const toggleViewBtn = document.getElementById('toggleViewBtn');
     const toggleViewText = document.getElementById('toggleViewText');
     const sitesHeaderTitle = document.getElementById('sitesHeaderTitle');
@@ -36,9 +39,20 @@ document.addEventListener('DOMContentLoaded', async function() {
     const cancelTabSelectBtn = document.getElementById('cancelTabSelectBtn');
     const siteIconInput = document.getElementById('siteIcon');
     const editSiteIconInput = document.getElementById('editSiteIcon');
+    const addFolderModal = document.getElementById('addFolderModal');
+    const saveFolderBtn = document.getElementById('saveFolderBtn');
+    const cancelFolderBtn = document.getElementById('cancelFolderBtn');
+    const folderNameInput = document.getElementById('folderName');
+    const folderImageInput = document.getElementById('folderImage');
+    const editFolderModal = document.getElementById('editFolderModal');
+    const updateFolderBtn = document.getElementById('updateFolderBtn');
+    const cancelEditFolderBtn = document.getElementById('cancelEditFolderBtn');
+    const editFolderNameInput = document.getElementById('editFolderName');
+    const editFolderImageInput = document.getElementById('editFolderImage');
     const currentTimeEl = document.getElementById('currentTime');
     const currentDateEl = document.getElementById('currentDate');
     const weatherInfoEl = document.getElementById('weatherInfo');
+    const weatherIconEl = document.getElementById('weatherIcon');
     const weatherLocationInput = document.getElementById('weatherLocationInput');
     const updateLocationBtn = document.getElementById('updateLocationBtn');
     const timeFormatSelect = document.getElementById('timeFormatSelect');
@@ -64,6 +78,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     let customSites = loadCustomSitesFromStorage();
     let currentWallpaperIndex = parseInt(localStorage.getItem('wallpaperIndex') || '0');
     let editingSiteId = null;
+    let editingFolderId = null;
+    let openFolderId = null;
+    let latestWeatherRequestId = 0;
+    let latestWeatherDisplay = {
+        locationLabel: 'Weather',
+        temp: '--',
+        unit: '',
+        high: '--',
+        low: '--',
+        desc: 'Loading...',
+        icon: '⋯',
+        isStale: false
+    };
     
     // Wallpaper collection
     const wallpapers = [
@@ -91,6 +118,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize
     initializeWallpaper();
     initializeView();
+    updateFolderSelectOptions();
     initializeWeatherLocation();
     initializeWidgetVisibility();
     loadTopSites();
@@ -98,6 +126,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     updateStats();
     startClock();
     updateWeather();
+    setInterval(updateWeather, 15 * 60 * 1000);
     
     // Initialize draggable positions after DOM is ready
     setTimeout(() => {
@@ -185,6 +214,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function initializeWeatherLocation() {
+        weatherLocation = weatherLocation.trim() || 'New York';
         weatherLocationInput.value = weatherLocation;
         timeFormatSelect.value = timeFormat;
         tempFormatSelect.value = tempFormat;
@@ -252,28 +282,103 @@ document.addEventListener('DOMContentLoaded', async function() {
         localStorage.setItem('braveExtensionSettings', JSON.stringify(settings));
     }
 
+    function createEntryId(prefix) {
+        return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    }
+
+    function isFolderEntry(entry) {
+        return entry && entry.type === 'folder';
+    }
+
+    function isSiteEntry(entry) {
+        return entry && entry.type === 'site';
+    }
+
+    function getFolderEntries() {
+        return customSites.filter(isFolderEntry);
+    }
+
+    function getFolderChildren(folderId) {
+        return customSites.filter(entry => isSiteEntry(entry) && entry.folderId === folderId);
+    }
+
+    function getTopLevelFavoriteEntries() {
+        return customSites.filter(entry => {
+            if (isFolderEntry(entry)) {
+                return true;
+            }
+
+            return isSiteEntry(entry) && entry.folderId === null;
+        });
+    }
+
+    function findEntryById(entryId) {
+        return customSites.find(entry => String(entry.id) === String(entryId)) || null;
+    }
+
     function sanitizeCustomSites(sites) {
         if (!Array.isArray(sites)) {
             return [];
         }
 
-        return sites
-            .filter(site => site && typeof site === 'object')
-            .filter(site => {
-                return (
-                    typeof site.title === 'string' &&
-                    site.title.trim() !== '' &&
-                    typeof site.url === 'string' &&
-                    site.url.trim() !== ''
-                );
-            })
-            .map((site, index) => ({
-                ...site,
-                title: site.title.trim(),
-                url: site.url.trim(),
-                isCustom: true,
-                id: site.id ?? `custom-${Date.now()}-${index}`
-            }));
+        const sanitizedEntries = [];
+        const validFolderIds = new Set();
+
+        sites.forEach((entry, index) => {
+            if (!entry || typeof entry !== 'object') {
+                return;
+            }
+
+            const rawType = entry.type === 'folder' ? 'folder' : 'site';
+            const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+
+            if (!title) {
+                return;
+            }
+
+            if (rawType === 'folder') {
+                const folderEntry = {
+                    id: entry.id ?? createEntryId('folder'),
+                    type: 'folder',
+                    title,
+                    image: typeof entry.image === 'string' ? entry.image.trim() : ''
+                };
+                sanitizedEntries.push(folderEntry);
+                validFolderIds.add(String(folderEntry.id));
+                return;
+            }
+
+            const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+            if (!url) {
+                return;
+            }
+
+            sanitizedEntries.push({
+                id: entry.id ?? createEntryId(`custom-${index}`),
+                type: 'site',
+                title,
+                url,
+                favicon: typeof entry.favicon === 'string' ? entry.favicon.trim() : '',
+                folderId: entry.folderId ?? null,
+                isCustom: true
+            });
+        });
+
+        return sanitizedEntries.map(entry => {
+            if (!isSiteEntry(entry)) {
+                return entry;
+            }
+
+            const normalizedFolderId = entry.folderId === null || entry.folderId === ''
+                ? null
+                : String(entry.folderId);
+
+            return {
+                ...entry,
+                folderId: normalizedFolderId && validFolderIds.has(normalizedFolderId) ? normalizedFolderId : null,
+                isCustom: true
+            };
+        });
     }
 
     function loadCustomSitesFromStorage() {
@@ -310,6 +415,50 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         customSites = sanitizedSites;
         localStorage.setItem('customTopSites', JSON.stringify(customSites));
+        updateFolderSelectOptions();
+    }
+
+    function updateFolderSelectOptions() {
+        const folderOptions = getFolderEntries()
+            .map(folder => `<option value="${folder.id}">${folder.title}</option>`)
+            .join('');
+
+        siteFolderSelect.innerHTML = `<option value="">No folder</option>${folderOptions}`;
+        editSiteFolderSelect.innerHTML = `<option value="">No folder</option>${folderOptions}`;
+    }
+
+    function closeFolderDropdown() {
+        openFolderId = null;
+    }
+
+    function resetAddSiteForm() {
+        siteNameInput.value = '';
+        siteUrlInput.value = '';
+        siteIconInput.value = '';
+        siteFolderSelect.value = '';
+        addSiteModal.classList.add('hidden');
+    }
+
+    function resetEditSiteForm() {
+        editSiteNameInput.value = '';
+        editSiteUrlInput.value = '';
+        editSiteIconInput.value = '';
+        editSiteFolderSelect.value = '';
+        editSiteModal.classList.add('hidden');
+        editingSiteId = null;
+    }
+
+    function resetAddFolderForm() {
+        folderNameInput.value = '';
+        folderImageInput.value = '';
+        addFolderModal.classList.add('hidden');
+    }
+
+    function resetEditFolderForm() {
+        editFolderNameInput.value = '';
+        editFolderImageInput.value = '';
+        editFolderModal.classList.add('hidden');
+        editingFolderId = null;
     }
     
     async function fetchFavicon(url) {
@@ -394,6 +543,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Toggle view button
         toggleViewBtn.addEventListener('click', () => {
             currentView = currentView === 'topSites' ? 'favorites' : 'topSites';
+            closeFolderDropdown();
             updateViewToggle();
             updateWidgetVisibility();
             saveSettings();
@@ -413,7 +563,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 showMoreBtn.textContent = 'Show More';
             }
             saveSettings();
-            updateGridDisplay();
+            renderTopSites();
         });
 
         // Customize panel
@@ -433,7 +583,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 currentSiteCount = parseInt(e.target.value);
                 customCountGroup.style.display = 'none';
                 saveSettings();
-                updateGridDisplay();
+                renderTopSites();
             }
         });
 
@@ -443,7 +593,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (customCount && customCount >= 1 && customCount <= 100) {
                 currentSiteCount = customCount;
                 saveSettings();
-                updateGridDisplay();
+                renderTopSites();
             }
         });
 
@@ -519,44 +669,58 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         // Add custom site
         addCustomSiteBtn.addEventListener('click', () => {
+            updateFolderSelectOptions();
             addSiteModal.classList.remove('hidden');
             siteNameInput.focus();
+        });
+
+        addFolderBtn.addEventListener('click', () => {
+            addFolderModal.classList.remove('hidden');
+            folderNameInput.focus();
         });
 
         saveSiteBtn.addEventListener('click', async () => {
             const name = siteNameInput.value.trim();
             const url = siteUrlInput.value.trim();
             const iconUrl = siteIconInput.value.trim();
+            const folderId = siteFolderSelect.value || null;
             
             if (name && url) {
                 const fullUrl = url.startsWith('http') ? url : 'https://' + url;
                 const favicon = iconUrl || await fetchFavicon(fullUrl);
                 
                 const customSite = {
+                    id: createEntryId('site'),
+                    type: 'site',
                     title: name,
                     url: fullUrl,
                     favicon: favicon,
-                    isCustom: true,
-                    id: Date.now()
+                    folderId,
+                    isCustom: true
                 };
                 
                 customSites.push(customSite);
                 saveCustomSites(customSites);
-                
-                siteNameInput.value = '';
-                siteUrlInput.value = '';
-                siteIconInput.value = '';
-                addSiteModal.classList.add('hidden');
-                
+
+                resetAddSiteForm();
                 loadTopSites();
             }
         });
 
         cancelSiteBtn.addEventListener('click', () => {
-            siteNameInput.value = '';
-            siteUrlInput.value = '';
-            siteIconInput.value = '';
-            addSiteModal.classList.add('hidden');
+            resetAddSiteForm();
+        });
+
+        siteNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveSiteBtn.click();
+            }
+        });
+
+        siteUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveSiteBtn.click();
+            }
         });
 
         // Edit site functionality
@@ -564,46 +728,132 @@ document.addEventListener('DOMContentLoaded', async function() {
             const name = editSiteNameInput.value.trim();
             const url = editSiteUrlInput.value.trim();
             const iconUrl = editSiteIconInput.value.trim();
+            const folderId = editSiteFolderSelect.value || null;
             
             if (name && url && editingSiteId) {
                 const fullUrl = url.startsWith('http') ? url : 'https://' + url;
                 const favicon = iconUrl || await fetchFavicon(fullUrl);
                 
                 // Find and update the site
-                const siteIndex = customSites.findIndex(site => site.id === editingSiteId);
+                const siteIndex = customSites.findIndex(site => String(site.id) === String(editingSiteId));
                 if (siteIndex !== -1) {
                     customSites[siteIndex] = {
                         ...customSites[siteIndex],
+                        type: 'site',
                         title: name,
                         url: fullUrl,
-                        favicon: favicon
+                        favicon: favicon,
+                        folderId
                     };
                     
                     saveCustomSites(customSites);
-                    
-                    editSiteNameInput.value = '';
-                    editSiteUrlInput.value = '';
-                    editSiteIconInput.value = '';
-                    editSiteModal.classList.add('hidden');
-                    editingSiteId = null;
-                    
+
+                    resetEditSiteForm();
                     loadTopSites();
                 }
             }
         });
 
         cancelEditBtn.addEventListener('click', () => {
-            editSiteNameInput.value = '';
-            editSiteUrlInput.value = '';
-            editSiteIconInput.value = '';
-            editSiteModal.classList.add('hidden');
-            editingSiteId = null;
+            resetEditSiteForm();
+        });
+
+        editSiteNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                updateSiteBtn.click();
+            }
+        });
+
+        editSiteUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                updateSiteBtn.click();
+            }
+        });
+
+        saveFolderBtn.addEventListener('click', () => {
+            const folderName = folderNameInput.value.trim();
+            const folderImage = folderImageInput.value.trim();
+            if (!folderName) {
+                return;
+            }
+
+            saveCustomSites([
+                ...customSites,
+                {
+                    id: createEntryId('folder'),
+                    type: 'folder',
+                    title: folderName,
+                    image: folderImage
+                }
+            ]);
+            resetAddFolderForm();
+            loadTopSites();
+        });
+
+        cancelFolderBtn.addEventListener('click', () => {
+            resetAddFolderForm();
+        });
+
+        folderNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveFolderBtn.click();
+            }
+        });
+
+        folderImageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveFolderBtn.click();
+            }
+        });
+
+        updateFolderBtn.addEventListener('click', () => {
+            const folderName = editFolderNameInput.value.trim();
+            const folderImage = editFolderImageInput.value.trim();
+            if (!folderName || !editingFolderId) {
+                return;
+            }
+
+            saveCustomSites(customSites.map(entry => {
+                if (String(entry.id) !== String(editingFolderId) || !isFolderEntry(entry)) {
+                    return entry;
+                }
+
+                return {
+                    ...entry,
+                    title: folderName,
+                    image: folderImage
+                };
+            }));
+
+            if (String(openFolderId) === String(editingFolderId)) {
+                openFolderId = String(editingFolderId);
+            }
+
+            resetEditFolderForm();
+            loadTopSites();
+        });
+
+        cancelEditFolderBtn.addEventListener('click', () => {
+            resetEditFolderForm();
+        });
+
+        editFolderNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                updateFolderBtn.click();
+            }
+        });
+
+        editFolderImageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                updateFolderBtn.click();
+            }
         });
 
         // Reset sites
         resetSitesBtn.addEventListener('click', () => {
             if (confirm('Reset all custom sites? This action cannot be undone.')) {
                 saveCustomSites([]);
+                closeFolderDropdown();
                 loadTopSites();
             }
         });
@@ -682,6 +932,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                             saveSettings();
                             initializeView();
                             initializeWidgetVisibility();
+                            closeFolderDropdown();
                             loadTopSites();
                             updateStats();
                             
@@ -749,6 +1000,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             showSearchWidget = e.target.checked;
             saveSettings();
             updateWidgetVisibility();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (
+                openFolderId &&
+                !e.target.closest('.folder-dropdown') &&
+                !e.target.closest('.folder-tile')
+            ) {
+                closeFolderDropdown();
+                renderTopSites();
+            }
         });
     }
 
@@ -874,12 +1136,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
                 
                 const customSite = {
+                    id: createEntryId('site'),
+                    type: 'site',
                     title: (tab.title && tab.title !== '') ? tab.title : 
                            (tab.url ? new URL(tab.url).hostname : 'Untitled'),
                     url: tab.url,
                     favicon: favicon,
-                    isCustom: true,
-                    id: Date.now()
+                    folderId: null,
+                    isCustom: true
                 };
                 
                 customSites.push(customSite);
@@ -957,7 +1221,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                 
                 // Add custom sites
                 customSites.forEach(site => {
-                    allSites.push(site);
+                    if (isSiteEntry(site)) {
+                        allSites.push(site);
+                    }
                 });
                 
                 // Add popular sites to fill gaps
@@ -1040,7 +1306,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Filter sites based on current view
         if (currentView === 'favorites') {
-            sitesToShow = customSites.slice(0, currentSiteCount);
+            const topLevelFavorites = getTopLevelFavoriteEntries();
+            sitesToShow = topLevelFavorites.slice(0, currentSiteCount);
             
             // Add clock and weather widgets as tiles in favorites view
             if (showClockWidget) {
@@ -1071,13 +1338,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         topSitesGrid.innerHTML = '';
-        const customSiteIndexById = new Map();
-
-        if (currentView === 'favorites') {
-            customSites.forEach((site, customIndex) => {
-                customSiteIndexById.set(String(site.id), customIndex);
-            });
-        }
+        const topLevelEntries = getTopLevelFavoriteEntries();
+        const topLevelIndexById = new Map();
+        topLevelEntries.forEach((entry, index) => {
+            topLevelIndexById.set(String(entry.id), index);
+        });
         
         sitesToShow.forEach((site, index) => {
             const siteElement = document.createElement('div');
@@ -1085,15 +1350,96 @@ document.addEventListener('DOMContentLoaded', async function() {
             siteElement.dataset.siteId = site.id;
             siteElement.dataset.siteIndex = index;
             
-            if (site.isCustom) {
+            if (site.type === 'folder') {
+                siteElement.classList.add('editable', 'folder-tile', 'draggable');
+                siteElement.dataset.entryType = 'folder';
+                siteElement.draggable = currentView === 'favorites';
+                const folderChildren = getFolderChildren(String(site.id));
+                const previewMarkup = folderChildren
+                    .slice(0, 4)
+                    .map(child => {
+                        const folderFavicon = child.favicon || getFavicon(child.url);
+                        return `<span class="folder-preview-icon"><img src="${folderFavicon}" alt="${child.title}"></span>`;
+                    })
+                    .join('');
+                const folderIconMarkup = site.image
+                    ? `
+                        <div class="site-icon folder-icon folder-icon-image">
+                            <img src="${site.image}" alt="${site.title}" onerror="this.closest('.folder-icon').classList.add('folder-icon-fallback'); this.remove();">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="folder-icon-svg">
+                                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                    `
+                    : `
+                        <div class="site-icon folder-icon folder-icon-fallback">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="folder-icon-svg">
+                                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                    `;
+
+                siteElement.innerHTML = `
+                    ${folderIconMarkup}
+                    <div class="site-title">${site.title}</div>
+                    <div class="folder-meta">
+                        <span class="folder-count">${folderChildren.length} site${folderChildren.length === 1 ? '' : 's'}</span>
+                        <div class="folder-preview">${previewMarkup}</div>
+                    </div>
+                    <div class="site-actions">
+                        <button class="edit-folder-btn" title="Edit Folder">✏️</button>
+                        <button class="delete-folder-btn" title="Delete Folder">×</button>
+                    </div>
+                `;
+
+                if (String(openFolderId) === String(site.id)) {
+                    const dropdown = document.createElement('div');
+                    dropdown.className = 'folder-dropdown';
+
+                    if (folderChildren.length === 0) {
+                        dropdown.innerHTML = '<div class="folder-empty">No sites in this folder yet.</div>';
+                    } else {
+                        folderChildren.forEach(child => {
+                            const item = document.createElement('div');
+                            item.className = 'folder-site-item';
+                            item.innerHTML = `
+                                <div class="folder-site-main">
+                                    <span class="folder-site-icon"><img src="${child.favicon || getFavicon(child.url)}" alt="${child.title}"></span>
+                                    <div class="folder-site-text">
+                                        <div class="folder-site-title">${child.title}</div>
+                                        <div class="folder-site-url">${child.url}</div>
+                                    </div>
+                                </div>
+                                <div class="folder-site-actions">
+                                    <button class="folder-site-edit-btn" data-site-id="${child.id}" title="Edit">✏️</button>
+                                    <button class="folder-site-delete-btn" data-site-id="${child.id}" title="Delete">×</button>
+                                </div>
+                            `;
+                            item.addEventListener('click', (event) => {
+                                if (
+                                    event.target.closest('.folder-site-edit-btn') ||
+                                    event.target.closest('.folder-site-delete-btn')
+                                ) {
+                                    return;
+                                }
+
+                                window.location.href = child.url;
+                            });
+                            dropdown.appendChild(item);
+                        });
+                    }
+
+                    siteElement.appendChild(dropdown);
+                }
+            } else if (site.isCustom) {
                 siteElement.classList.add('editable');
                 // Only make custom sites draggable in favorites view
                 if (currentView === 'favorites') {
                     siteElement.classList.add('draggable');
                     siteElement.draggable = true;
-                    const customSiteIndex = customSiteIndexById.get(String(site.id));
-                    if (Number.isInteger(customSiteIndex)) {
-                        siteElement.dataset.customSiteIndex = customSiteIndex;
+                    const topLevelIndex = topLevelIndexById.get(String(site.id));
+                    if (Number.isInteger(topLevelIndex)) {
+                        siteElement.dataset.topLevelIndex = topLevelIndex;
                     }
                 }
             }
@@ -1113,18 +1459,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                             <div class="widget-time" id="widget-time">--:--</div>
                             <div class="widget-date" id="widget-date">-- --- --</div>
                         </div>
-                        <div class="site-title">${site.title}</div>
                     `;
                 } else if (site.widgetType === 'weather') {
                     siteElement.innerHTML = `
                         <div class="widget-content">
+                            <div class="widget-weather-icon" id="widget-weather-icon">⋯</div>
                             <div class="widget-temp" id="widget-temp">--°</div>
                             <div class="widget-desc" id="widget-desc">Loading...</div>
                         </div>
-                        <div class="site-title">${site.title}</div>
                     `;
                 }
-            } else {
+            } else if (site.type !== 'folder') {
                 siteElement.innerHTML = `
                     <div class="site-icon">
                         <img src="${favicon}" alt="${site.title}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNCIgZmlsbD0iI2Y1ZjVmNSIvPgo8L3N2Zz4K'">
@@ -1135,12 +1480,49 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             
             // Only custom favorites participate in reorder operations
-            if (site.isCustom && currentView === 'favorites') {
+            if (
+                currentView === 'favorites' &&
+                (
+                    site.type === 'folder' ||
+                    (site.isCustom && site.folderId === null)
+                )
+            ) {
                 setupDragAndDrop(siteElement);
             }
             
             // Add click handler for navigation
             siteElement.addEventListener('click', (e) => {
+                if (e.target.classList.contains('edit-folder-btn')) {
+                    editingFolderId = site.id;
+                    editFolderNameInput.value = site.title;
+                    editFolderImageInput.value = site.image || '';
+                    editFolderModal.classList.remove('hidden');
+                    e.stopPropagation();
+                    return;
+                }
+
+                if (e.target.classList.contains('delete-folder-btn')) {
+                    const folderChildren = getFolderChildren(String(site.id));
+                    if (confirm(`Delete folder "${site.title}"? Sites inside it will be moved back to Favorites.`)) {
+                        saveCustomSites(customSites
+                            .filter(entry => String(entry.id) !== String(site.id))
+                            .map(entry => {
+                                if (isSiteEntry(entry) && String(entry.folderId) === String(site.id)) {
+                                    return {
+                                        ...entry,
+                                        folderId: null
+                                    };
+                                }
+
+                                return entry;
+                            }));
+                        closeFolderDropdown();
+                        loadTopSites();
+                    }
+                    e.stopPropagation();
+                    return;
+                }
+
                 // Check if clicked on action buttons
                 if (e.target.classList.contains('edit-site-btn')) {
                     // Edit button clicked
@@ -1148,6 +1530,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     editSiteNameInput.value = site.title;
                     editSiteUrlInput.value = site.url;
                     editSiteIconInput.value = site.favicon || '';
+                    updateFolderSelectOptions();
+                    editSiteFolderSelect.value = site.folderId || '';
                     editSiteModal.classList.remove('hidden');
                     e.stopPropagation();
                     return;
@@ -1156,7 +1540,35 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (e.target.classList.contains('delete-site-btn')) {
                     // Delete button clicked
                     if (confirm(`Remove "${site.title}" from favorites?`)) {
-                        saveCustomSites(customSites.filter(s => s.id !== site.id));
+                        saveCustomSites(customSites.filter(s => String(s.id) !== String(site.id)));
+                        closeFolderDropdown();
+                        loadTopSites();
+                    }
+                    e.stopPropagation();
+                    return;
+                }
+
+                if (e.target.classList.contains('folder-site-edit-btn')) {
+                    const childSite = findEntryById(e.target.dataset.siteId);
+                    if (!childSite || !isSiteEntry(childSite)) {
+                        return;
+                    }
+
+                    editingSiteId = childSite.id;
+                    editSiteNameInput.value = childSite.title;
+                    editSiteUrlInput.value = childSite.url;
+                    editSiteIconInput.value = childSite.favicon || '';
+                    updateFolderSelectOptions();
+                    editSiteFolderSelect.value = childSite.folderId || '';
+                    editSiteModal.classList.remove('hidden');
+                    e.stopPropagation();
+                    return;
+                }
+
+                if (e.target.classList.contains('folder-site-delete-btn')) {
+                    const childSite = findEntryById(e.target.dataset.siteId);
+                    if (childSite && confirm(`Remove "${childSite.title}" from favorites?`)) {
+                        saveCustomSites(customSites.filter(entry => String(entry.id) !== String(childSite.id)));
                         loadTopSites();
                     }
                     e.stopPropagation();
@@ -1164,7 +1576,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
                 
                 // Don't navigate if clicked on action buttons container
-                if (e.target.classList.contains('site-actions')) {
+                if (
+                    e.target.classList.contains('site-actions') ||
+                    e.target.closest('.site-actions') ||
+                    e.target.closest('.folder-dropdown') ||
+                    e.target.closest('.folder-site-actions')
+                ) {
                     e.stopPropagation();
                     return;
                 }
@@ -1174,6 +1591,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                     e.preventDefault();
                     e.stopPropagation();
                     return; // Widgets don't navigate anywhere
+                }
+
+                if (site.type === 'folder') {
+                    openFolderId = String(openFolderId) === String(site.id) ? null : String(site.id);
+                    renderTopSites();
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
                 }
                 
                 // Navigate to site
@@ -1197,12 +1622,14 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <div class="quick-add-options">
                     <button class="quick-add-btn manual-add" title="Add Manually">✏️</button>
                     <button class="quick-add-btn from-tab" title="From Open Tab">📋</button>
+                    <button class="quick-add-btn make-folder" title="Add Folder">📁</button>
                 </div>
             `;
             
             // Manual add button
             addButton.querySelector('.manual-add').addEventListener('click', (e) => {
                 e.stopPropagation();
+                updateFolderSelectOptions();
                 addSiteModal.classList.remove('hidden');
                 siteNameInput.focus();
             });
@@ -1243,10 +1670,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
                 });
             });
+
+            addButton.querySelector('.make-folder').addEventListener('click', (e) => {
+                e.stopPropagation();
+                addFolderModal.classList.remove('hidden');
+                folderNameInput.focus();
+            });
             
             // Main tile click for manual add (fallback)
             addButton.addEventListener('click', (e) => {
                 if (!e.target.classList.contains('quick-add-btn')) {
+                    updateFolderSelectOptions();
                     addSiteModal.classList.remove('hidden');
                     siteNameInput.focus();
                 }
@@ -1316,52 +1750,361 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Also update any widget tiles in the grid
         updateWidgetTiles();
     }
+
+    function mapWeatherCode(weatherCode, isDay) {
+        const code = Number(weatherCode);
+
+        if (code === 0) {
+            return {
+                label: 'Clear sky',
+                icon: isDay ? '☀️' : '🌙'
+            };
+        }
+
+        if ([1, 2].includes(code)) {
+            return {
+                label: 'Partly cloudy',
+                icon: isDay ? '🌤️' : '☁️'
+            };
+        }
+
+        if (code === 3) {
+            return {
+                label: 'Overcast',
+                icon: '☁️'
+            };
+        }
+
+        if ([45, 48].includes(code)) {
+            return {
+                label: 'Foggy',
+                icon: '🌫️'
+            };
+        }
+
+        if ([51, 53, 55, 56, 57].includes(code)) {
+            return {
+                label: 'Drizzle',
+                icon: '🌦️'
+            };
+        }
+
+        if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+            return {
+                label: 'Rain',
+                icon: '🌧️'
+            };
+        }
+
+        if ([71, 73, 75, 77, 85, 86].includes(code)) {
+            return {
+                label: 'Snow',
+                icon: '❄️'
+            };
+        }
+
+        if ([95, 96, 99].includes(code)) {
+            return {
+                label: 'Thunderstorm',
+                icon: '⛈️'
+            };
+        }
+
+        return {
+            label: 'Weather unavailable',
+            icon: '🌡️'
+        };
+    }
+
+    function formatLocationLabel(locationName) {
+        return locationName.split(',')[0].trim() || locationName;
+    }
+
+    function getEffectiveWeatherLocation() {
+        return weatherLocation.trim() || 'New York';
+    }
+
+    function renderWeatherState({
+        locationLabel,
+        temp,
+        unit,
+        high,
+        low,
+        desc,
+        icon,
+        isStale = false
+    }) {
+        latestWeatherDisplay = {
+            locationLabel,
+            temp,
+            unit,
+            high,
+            low,
+            desc,
+            icon,
+            isStale
+        };
+        weatherIconEl.textContent = icon;
+        weatherInfoEl.innerHTML = `
+            <div class="weather-location-row">
+                <div class="weather-location">${locationLabel}</div>
+                ${isStale ? '<div class="weather-status">Offline</div>' : '<div class="weather-status weather-status-live">Live</div>'}
+            </div>
+            <div class="weather-temp-row">
+                <div class="weather-temp">${temp}${unit}</div>
+                <div class="weather-range">H ${high}${unit} / L ${low}${unit}</div>
+            </div>
+            <div class="weather-desc">${desc}</div>
+        `;
+
+        const widgetTemp = document.getElementById('widget-temp');
+        const widgetDesc = document.getElementById('widget-desc');
+        if (widgetTemp) {
+            widgetTemp.textContent = `${temp}${unit}`;
+        }
+        if (widgetDesc) {
+            widgetDesc.textContent = desc;
+        }
+
+        updateWidgetTiles();
+    }
+
+    function renderWeatherUnavailable(message) {
+        latestWeatherDisplay = {
+            locationLabel: formatLocationLabel(weatherLocation),
+            temp: '--',
+            unit: '',
+            high: '--',
+            low: '--',
+            desc: message,
+            icon: '🌡️',
+            isStale: true
+        };
+        weatherIconEl.textContent = '🌡️';
+        weatherInfoEl.innerHTML = `
+            <div class="weather-location-row">
+                <div class="weather-location">${formatLocationLabel(weatherLocation)}</div>
+                <div class="weather-status">Offline</div>
+            </div>
+            <div class="weather-temp-row">
+                <div class="weather-temp">--</div>
+                <div class="weather-range">Check location</div>
+            </div>
+            <div class="weather-desc">${message}</div>
+        `;
+
+        const widgetTemp = document.getElementById('widget-temp');
+        const widgetDesc = document.getElementById('widget-desc');
+        if (widgetTemp) widgetTemp.textContent = '--';
+        if (widgetDesc) widgetDesc.textContent = message;
+
+        updateWidgetTiles();
+    }
+
+    async function fetchJsonWithTimeout(url, timeoutMs = 8000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+            }
+
+            return await response.json();
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    async function fetchWttrWeather(unit) {
+        const effectiveLocation = getEffectiveWeatherLocation();
+        const wttrData = await fetchJsonWithTimeout(
+            `https://wttr.in/${encodeURIComponent(effectiveLocation)}?format=j1`,
+            5000
+        );
+
+        if (
+            !wttrData ||
+            !Array.isArray(wttrData.current_condition) ||
+            !wttrData.current_condition[0] ||
+            !Array.isArray(wttrData.weather) ||
+            !wttrData.weather[0]
+        ) {
+            throw new Error('Invalid wttr weather data');
+        }
+
+        const current = wttrData.current_condition[0];
+        const today = wttrData.weather[0];
+        const temp = tempFormat === 'celsius'
+            ? Math.round(Number(current.temp_C))
+            : Math.round(Number(current.temp_F));
+        const high = tempFormat === 'celsius'
+            ? Math.round(Number(today.maxtempC))
+            : Math.round(Number(today.maxtempF));
+        const low = tempFormat === 'celsius'
+            ? Math.round(Number(today.mintempC))
+            : Math.round(Number(today.mintempF));
+        const desc = current.weatherDesc && current.weatherDesc[0] ? current.weatherDesc[0].value : 'Current conditions';
+        const isDay = current.isday === 'yes';
+        const weatherMeta = mapWeatherCode(Number(current.weatherCode), isDay);
+
+        return {
+            locationLabel: formatLocationLabel(effectiveLocation),
+            temp,
+            unit,
+            high,
+            low,
+            desc,
+            icon: weatherMeta.icon === '🌡️' ? (isDay ? '🌤️' : '🌙') : weatherMeta.icon,
+            isStale: false
+        };
+    }
+
+    async function geocodeLocation(locationQuery) {
+        const geocodeData = await fetchJsonWithTimeout(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationQuery)}&count=1&language=en&format=json`
+        );
+
+        const primaryMatch = Array.isArray(geocodeData.results) ? geocodeData.results[0] : null;
+        if (primaryMatch) {
+            return {
+                name: primaryMatch.name,
+                latitude: primaryMatch.latitude,
+                longitude: primaryMatch.longitude
+            };
+        }
+
+        const nominatimResults = await fetchJsonWithTimeout(
+            `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(locationQuery)}`,
+            5000
+        );
+        const fallbackMatch = Array.isArray(nominatimResults) ? nominatimResults[0] : null;
+        if (!fallbackMatch) {
+            throw new Error('Location not found');
+        }
+
+        return {
+            name: fallbackMatch.display_name || locationQuery,
+            latitude: Number(fallbackMatch.lat),
+            longitude: Number(fallbackMatch.lon)
+        };
+    }
     
     async function updateWeather() {
+        const requestId = ++latestWeatherRequestId;
+        const unit = tempFormat === 'celsius' ? '°C' : '°F';
+        const temperatureUnit = tempFormat === 'celsius' ? 'celsius' : 'fahrenheit';
+        const effectiveLocation = getEffectiveWeatherLocation();
+
         try {
-            const response = await fetch(`https://wttr.in/${encodeURIComponent(weatherLocation)}?format=j1`);
-            const data = await response.json();
-            
-            if (data && data.current_condition && data.current_condition[0]) {
-                const weather = data.current_condition[0];
-                const temp = tempFormat === 'celsius' ? 
-                    Math.round(weather.temp_C) : 
-                    Math.round(weather.temp_F);
-                const unit = tempFormat === 'celsius' ? '°C' : '°F';
-                const desc = weather.weatherDesc[0].value;
-                
-                weatherInfoEl.innerHTML = `
-                    <div class="weather-temp">${temp}${unit}</div>
-                    <div class="weather-desc">${desc}</div>
-                `;
-                
-                // Update widget tiles if they exist
-                const widgetTemp = document.getElementById('widget-temp');
-                const widgetDesc = document.getElementById('widget-desc');
-                if (widgetTemp) widgetTemp.textContent = `${temp}${unit}`;
-                if (widgetDesc) widgetDesc.textContent = desc;
-                
-                // Also update any widget tiles in the grid
-                updateWidgetTiles();
-            } else {
-                throw new Error('Invalid weather data');
-            }
-        } catch (error) {
-            console.error('Weather fetch error:', error);
-            const unit = tempFormat === 'celsius' ? '°C' : '°F';
+            weatherIconEl.textContent = '⋯';
             weatherInfoEl.innerHTML = `
-                <div class="weather-temp">--${unit}</div>
-                <div class="weather-desc">Weather unavailable</div>
+                <div class="weather-location-row">
+                    <div class="weather-location">${formatLocationLabel(effectiveLocation)}</div>
+                    <div class="weather-status">Loading</div>
+                </div>
+                <div class="weather-temp-row">
+                    <div class="weather-temp">--</div>
+                    <div class="weather-range">Fetching now</div>
+                </div>
+                <div class="weather-desc">Updating current conditions</div>
             `;
-            
-            // Update widget tiles if they exist
-            const widgetTemp = document.getElementById('widget-temp');
-            const widgetDesc = document.getElementById('widget-desc');
-            if (widgetTemp) widgetTemp.textContent = `--${unit}`;
-            if (widgetDesc) widgetDesc.textContent = 'Weather unavailable';
-            
-            // Also update any widget tiles in the grid
-            updateWidgetTiles();
+
+            let weatherState;
+
+            try {
+                const match = await geocodeLocation(effectiveLocation);
+
+                const weatherData = await fetchJsonWithTimeout(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${match.latitude}&longitude=${match.longitude}&current=temperature_2m,apparent_temperature,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&temperature_unit=${temperatureUnit}&timezone=auto`
+                );
+
+                const current = weatherData.current;
+                const daily = weatherData.daily;
+                if (
+                    !current ||
+                    typeof current.temperature_2m !== 'number' ||
+                    typeof current.weather_code !== 'number' ||
+                    !daily ||
+                    !Array.isArray(daily.temperature_2m_max) ||
+                    !Array.isArray(daily.temperature_2m_min)
+                ) {
+                    throw new Error('Invalid weather data');
+                }
+
+                const weatherMeta = mapWeatherCode(current.weather_code, current.is_day === 1);
+                weatherState = {
+                    locationLabel: formatLocationLabel(match.name),
+                    temp: Math.round(current.temperature_2m),
+                    unit,
+                    high: Math.round(daily.temperature_2m_max[0]),
+                    low: Math.round(daily.temperature_2m_min[0]),
+                    desc: weatherMeta.label,
+                    icon: weatherMeta.icon,
+                    isStale: false
+                };
+            } catch (primaryError) {
+                console.warn('Primary weather provider failed, falling back to wttr.in:', primaryError);
+                weatherState = await fetchWttrWeather(unit);
+            }
+
+            if (requestId !== latestWeatherRequestId) {
+                return;
+            }
+
+            localStorage.setItem('weatherCache', JSON.stringify({
+                weatherLocation: effectiveLocation,
+                tempFormat,
+                weatherState,
+                savedAt: Date.now()
+            }));
+
+            renderWeatherState(weatherState);
+        } catch (error) {
+            if (requestId !== latestWeatherRequestId) {
+                return;
+            }
+
+            console.error('Weather fetch error:', error);
+            const cachedWeatherRaw = localStorage.getItem('weatherCache');
+
+            if (cachedWeatherRaw) {
+                try {
+                    const cachedWeather = JSON.parse(cachedWeatherRaw);
+                    const isMatchingCache =
+                        cachedWeather &&
+                        cachedWeather.weatherLocation === effectiveLocation &&
+                        cachedWeather.tempFormat === tempFormat &&
+                        cachedWeather.weatherState;
+
+                    if (isMatchingCache) {
+                        renderWeatherState({
+                            ...cachedWeather.weatherState,
+                            isStale: true
+                        });
+                        return;
+                    }
+                } catch (cacheError) {
+                    console.warn('Failed to read cached weather:', cacheError);
+                }
+            }
+
+            if (latestWeatherDisplay.temp !== '--') {
+                renderWeatherState({
+                    ...latestWeatherDisplay,
+                    isStale: true
+                });
+                return;
+            }
+
+            renderWeatherUnavailable('Weather unavailable');
         }
     }
     
@@ -1624,15 +2367,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     function setupDragAndDrop(element) {
         element.addEventListener('dragstart', (e) => {
-            const customSiteIndex = Number.parseInt(element.dataset.customSiteIndex, 10);
-            if (!Number.isInteger(customSiteIndex)) {
+            const siteId = element.dataset.siteId;
+            if (!siteId) {
                 e.preventDefault();
                 return;
             }
 
             element.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', element.outerHTML);
+            e.dataTransfer.setData('text/plain', siteId);
         });
         
         element.addEventListener('dragend', (e) => {
@@ -1660,7 +2403,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Add drop zones to all custom sites in favorites view
         if (currentView === 'favorites') {
-            const draggableSites = document.querySelectorAll('.top-site.draggable[data-custom-site-index]');
+            const draggableSites = document.querySelectorAll('.top-site.draggable[data-site-id]');
             console.log('Found', draggableSites.length, 'draggable sites');
             
             draggableSites.forEach((site, index) => {
@@ -1668,7 +2411,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 site.addEventListener('dragenter', handleDragEnter);
                 site.addEventListener('dragleave', handleDragLeave);
                 site.addEventListener('drop', handleDrop);
-                console.log('Added drop listeners to site', index, ':', site.dataset.customSiteIndex);
+                console.log('Added drop listeners to site', index, ':', site.dataset.siteId);
             });
         }
     }
@@ -1702,55 +2445,48 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
         
-        const dragStartIndex = Number.parseInt(draggedElement.dataset.customSiteIndex, 10);
-        const dragEndIndex = Number.parseInt(this.dataset.customSiteIndex, 10);
+        const draggedSiteId = draggedElement.dataset.siteId;
+        const dropTargetSiteId = this.dataset.siteId;
         
         console.log('Drop event:', {
-            dragStartIndex: dragStartIndex,
-            dragEndIndex: dragEndIndex,
+            draggedSiteId: draggedSiteId,
+            dropTargetSiteId: dropTargetSiteId,
             draggedElement: draggedElement,
             dropTarget: this
         });
         
-        if (Number.isInteger(dragStartIndex) && Number.isInteger(dragEndIndex) && dragStartIndex !== dragEndIndex) {
-            console.log('Reordering favorites from', dragStartIndex, 'to', dragEndIndex);
-            reorderFavorites(dragStartIndex, dragEndIndex);
+        if (draggedSiteId && dropTargetSiteId && draggedSiteId !== dropTargetSiteId) {
+            console.log('Reordering favorites from', draggedSiteId, 'to', dropTargetSiteId);
+            reorderFavorites(draggedSiteId, dropTargetSiteId);
         } else {
             console.log('Invalid drop indices or same position');
         }
     }
     
-    function reorderFavorites(fromIndex, toIndex) {
-        if (
-            !Number.isInteger(fromIndex) ||
-            !Number.isInteger(toIndex) ||
-            fromIndex < 0 ||
-            toIndex < 0 ||
-            fromIndex >= customSites.length ||
-            toIndex >= customSites.length
-        ) {
-            console.warn('Rejected invalid favorites reorder request:', { fromIndex, toIndex, length: customSites.length });
+    function reorderFavorites(fromId, toId) {
+        const topLevelEntries = getTopLevelFavoriteEntries();
+        const fromIndex = topLevelEntries.findIndex(entry => String(entry.id) === String(fromId));
+        const toIndex = topLevelEntries.findIndex(entry => String(entry.id) === String(toId));
+
+        if (fromIndex === -1 || toIndex === -1) {
+            console.warn('Rejected invalid favorites reorder request:', { fromId, toId });
             showNotification('Unable to reorder favorites. Please try again.');
             return;
         }
 
-        // Create a copy of the custom sites array
-        const newCustomSites = [...customSites];
-        
-        // Remove the dragged item from its original position
-        const draggedSite = newCustomSites.splice(fromIndex, 1)[0];
+        const reorderedTopLevelEntries = [...topLevelEntries];
+        const draggedSite = reorderedTopLevelEntries.splice(fromIndex, 1)[0];
 
         if (!draggedSite) {
-            console.warn('No favorite found at drag start index:', fromIndex);
+            console.warn('No favorite found at drag start id:', fromId);
             showNotification('Unable to reorder favorites. Please try again.');
             return;
         }
         
-        // Insert it at the new position
-        newCustomSites.splice(toIndex, 0, draggedSite);
-        
-        // Update the global array and save to storage
-        saveCustomSites(newCustomSites);
+        reorderedTopLevelEntries.splice(toIndex, 0, draggedSite);
+
+        const nestedEntries = customSites.filter(entry => isSiteEntry(entry) && entry.folderId !== null);
+        saveCustomSites([...reorderedTopLevelEntries, ...nestedEntries]);
         
         // Re-render the sites to reflect the new order
         renderTopSites();
@@ -1819,6 +2555,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const dateElement = widget.querySelector('.widget-date');
             const tempElement = widget.querySelector('.widget-temp');
             const descElement = widget.querySelector('.widget-desc');
+            const weatherIconElement = widget.querySelector('.widget-weather-icon');
             
             if (timeElement && dateElement) {
                 // This is a clock widget
@@ -1827,13 +2564,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             
             if (tempElement && descElement) {
-                // This is a weather widget
-                const weatherTemp = weatherInfoEl.querySelector('.weather-temp');
-                const weatherDesc = weatherInfoEl.querySelector('.weather-desc');
-                if (weatherTemp && weatherDesc) {
-                    tempElement.textContent = weatherTemp.textContent;
-                    descElement.textContent = weatherDesc.textContent;
-                }
+                tempElement.textContent = `${latestWeatherDisplay.temp}${latestWeatherDisplay.unit}`;
+                descElement.textContent = latestWeatherDisplay.desc;
+            }
+
+            if (weatherIconElement) {
+                weatherIconElement.textContent = latestWeatherDisplay.icon;
             }
         });
     }
